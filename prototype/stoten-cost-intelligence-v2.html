@@ -11,8 +11,8 @@
     html, body { font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; }
     body { background: #f9fafb; }
 
-    /* Natural page scroll — works inside iframes of any height */
-    .app { display: flex; min-height: 100vh; align-items: flex-start; }
+    /* Natural content height — iframe-friendly */
+    .app { display: flex; align-items: flex-start; }
 
     /* ─── SIDEBAR ─────────────────────────────────────── */
     .sidebar {
@@ -1239,6 +1239,7 @@ document.querySelectorAll('.sb-item[data-dash]').forEach(item => {
     document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
     document.getElementById('dash-' + id).classList.add('active');
     window.scrollTo(0, 0);
+    try { window.parent.scrollTo(0, 0); } catch(e) {}
     if (id === 'regional') renderComparison();
     if (id === 'trade') renderTradeCharts();
   });
@@ -1644,6 +1645,7 @@ function navigateTo(dashId, activeSidebarDash) {
   document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
   document.getElementById('dash-' + dashId).classList.add('active');
   window.scrollTo(0, 0);
+  try { window.parent.scrollTo(0, 0); } catch(e) {}
 }
 
 function openProject(projectId, fromDash) {

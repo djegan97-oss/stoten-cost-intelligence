@@ -1515,13 +1515,14 @@ function buildTradeSummaryTable(market) {
   const site = getTradeData('site', market);
   const tbody = document.getElementById('trade-tbody');
   tbody.innerHTML = '';
-  QUARTERS.forEach((q, i) => {
-    function deltaCell(arr, j) {
-      if (j === 0) return '<td style="color:#9ca3af;font-size:11px;">—</td>';
-      const pct = (arr[j]-arr[j-1])/arr[j-1]*100;
-      const cls = pct>0?'var-over':'var-under';
-      return `<td class="${cls}" style="font-size:11px;">${pct>=0?'+':''}${pct.toFixed(1)}%</td>`;
-    }
+  function deltaCell(arr, j) {
+    if (j === 0) return '<td style="color:#9ca3af;font-size:11px;">—</td>';
+    const pct = (arr[j]-arr[j-1])/arr[j-1]*100;
+    const cls = pct>0?'var-over':'var-under';
+    return `<td class="${cls}" style="font-size:11px;">${pct>=0?'+':''}${pct.toFixed(1)}%</td>`;
+  }
+  for (let i = QUARTERS.length - 1; i >= 0; i--) {
+    const q = QUARTERS[i];
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="font-weight:700;color:#374151;">${q}</td>
@@ -1531,7 +1532,7 @@ function buildTradeSummaryTable(market) {
       <td class="font-mono">${fmtSF2(site[i])}</td>${deltaCell(site,i)}
     `;
     tbody.appendChild(tr);
-  });
+  }
 }
 
 function buildCommodityDetailTable(key, bodyId, fmtFn) {
@@ -1540,19 +1541,21 @@ function buildCommodityDetailTable(key, bodyId, fmtFn) {
   DETAIL_REGIONS.forEach(r => { regional[r] = getRegionalSeries(key, r); });
   const tbody = document.getElementById(bodyId);
   tbody.innerHTML = '';
-  QUARTERS.forEach((q, i) => {
+
+  function cell(val, prev, isNat) {
+    const price = fmtFn(val);
+    const delta = fmtDeltaCell(val, prev);
+    return `<td class="tc-cell${isNat?' nat-col':''}">
+      <div class="tc-cell-price">${price}</div>
+      <div class="tc-cell-delta">${delta}</div>
+    </td>`;
+  }
+
+  for (let i = QUARTERS.length - 1; i >= 0; i--) {
+    const q = QUARTERS[i];
     const isAlt = i % 2 === 1;
     const tr = document.createElement('tr');
     if (isAlt) tr.className = 'comm-row-alt';
-
-    function cell(val, prev, isNat) {
-      const price = fmtFn(val);
-      const delta = fmtDeltaCell(val, prev);
-      return `<td class="tc-cell${isNat?' nat-col':''}">
-        <div class="tc-cell-price">${price}</div>
-        <div class="tc-cell-delta">${delta}</div>
-      </td>`;
-    }
 
     let html = `<td class="tc-qtr">${q}</td>`;
     html += cell(national[i], i>0?national[i-1]:null, true);
@@ -1561,7 +1564,7 @@ function buildCommodityDetailTable(key, bodyId, fmtFn) {
     });
     tr.innerHTML = html;
     tbody.appendChild(tr);
-  });
+  }
 }
 
 // Tab switching

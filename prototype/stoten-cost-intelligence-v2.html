@@ -11,14 +11,12 @@
     html, body { font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; }
     body { background: #f9fafb; }
 
-    /* Natural content height — iframe-friendly */
-    .app { display: flex; align-items: flex-start; }
+    .app { display: flex; height: 100vh; overflow: hidden; }
 
     /* ─── SIDEBAR ─────────────────────────────────────── */
     .sidebar {
       width: 220px; background: #111827; color: #9ca3af;
       display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto;
-      position: sticky; top: 0; height: 100vh; align-self: flex-start;
     }
     .sb-header { padding: 20px 16px 14px; border-bottom: 1px solid #1f2937; }
     .sb-brand { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: #4b5563; text-transform: uppercase; margin-bottom: 3px; }
@@ -51,7 +49,7 @@
     .user-role { font-size: 11px; color: #6b7280; }
 
     /* ─── MAIN ────────────────────────────────────────── */
-    .main { flex: 1; min-width: 0; }
+    .main { flex: 1; overflow-y: auto; min-width: 0; }
 
     .dashboard { display: none; }
     .dashboard.active { display: block; }
@@ -1238,8 +1236,7 @@ document.querySelectorAll('.sb-item[data-dash]').forEach(item => {
     item.classList.add('active');
     document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
     document.getElementById('dash-' + id).classList.add('active');
-    window.scrollTo(0, 0);
-    try { window.parent.scrollTo(0, 0); } catch(e) {}
+    document.querySelector('.main').scrollTop = 0;
     if (id === 'regional') renderComparison();
     if (id === 'trade') renderTradeCharts();
   });
@@ -1644,8 +1641,7 @@ function navigateTo(dashId, activeSidebarDash) {
   }
   document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
   document.getElementById('dash-' + dashId).classList.add('active');
-  window.scrollTo(0, 0);
-  try { window.parent.scrollTo(0, 0); } catch(e) {}
+  document.querySelector('.main').scrollTop = 0;
 }
 
 function openProject(projectId, fromDash) {

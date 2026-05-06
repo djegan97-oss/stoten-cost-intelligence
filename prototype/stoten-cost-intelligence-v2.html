@@ -269,10 +269,90 @@
       border-radius: 8px; padding: 12px 18px; font-size: 12px; color: #64748b; line-height: 1.7;
     }
     .ranking-note strong { color: #334155; }
+
+    /* ─── MOBILE TOPBAR + BACKDROP (hidden by default) ──── */
+    .mobile-topbar { display: none; }
+    .mobile-backdrop { display: none; }
+
+    /* ─── MOBILE LAYOUT (≤ 768px) ────────────────────────── */
+    @media (max-width: 768px) {
+      .mobile-topbar {
+        display: flex; align-items: center; gap: 12px;
+        padding: 11px 14px; background: #111827; color: #f3f4f6;
+        position: sticky; top: 0; z-index: 50;
+        border-bottom: 1px solid #1f2937;
+      }
+      .mobile-menu-btn {
+        background: transparent; border: 0; color: inherit;
+        font-size: 22px; line-height: 1; padding: 0; cursor: pointer;
+        font-family: inherit;
+      }
+      .mobile-title {
+        font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+      }
+
+      /* Sidebar slides in from left */
+      .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.22s ease;
+        z-index: 200;
+      }
+      body.menu-open .sidebar { transform: translateX(0); }
+
+      /* Backdrop appears when menu open */
+      .mobile-backdrop {
+        display: block; position: fixed; inset: 0;
+        background: rgba(0,0,0,0.5); z-index: 150;
+        opacity: 0; pointer-events: none;
+        transition: opacity 0.2s ease;
+      }
+      body.menu-open .mobile-backdrop {
+        opacity: 1; pointer-events: auto;
+      }
+
+      /* Main content no longer offset for fixed sidebar */
+      .main { margin-left: 0; }
+
+      /* KPI cards: 4 → 2 columns */
+      .kpi-row { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+      .kpi-card { padding: 12px; }
+      .kpi-val { font-size: 22px; }
+
+      /* Stylesheet grids stack to single column */
+      .chart-row,
+      .selectors,
+      .trade-grid,
+      .proj-specs-strip { grid-template-columns: 1fr !important; }
+
+      /* Inline grids (project history cards, comparison columns,
+         foundation 2-col, estimate form, bid compare 1fr/340, etc.) */
+      [style*="grid-template-columns"]:not(.kpi-row) {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* Tables horizontal-scroll inside their card */
+      .tcard { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+      /* Tighter padding so content doesn't crash into edges */
+      .dash-body { padding: 14px 14px; }
+      .dash-header { padding: 14px 14px 10px; flex-wrap: wrap; gap: 8px; }
+      .dash-title { font-size: 14px; }
+      .dash-sub { font-size: 11px; }
+      .demo-badge { font-size: 9px; padding: 2px 7px; }
+
+      /* Region tabs and trade tabs already wrap/scroll — no change */
+    }
   </style>
 </head>
 <body>
 <div class="app">
+
+  <!-- ─── MOBILE TOP BAR (≤768px only) ───────── -->
+  <div class="mobile-topbar">
+    <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Open menu">☰</button>
+    <div class="mobile-title">STOTEN · Cost Intelligence</div>
+  </div>
+  <div class="mobile-backdrop" id="mobile-backdrop"></div>
 
   <!-- ─── SIDEBAR ─────────────────────────────── -->
   <aside class="sidebar">
@@ -1242,11 +1322,18 @@ document.querySelectorAll('.sb-item[data-dash]').forEach(item => {
     item.classList.add('active');
     document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
     document.getElementById('dash-' + id).classList.add('active');
+    document.body.classList.remove('menu-open'); // close mobile menu after picking a panel
     requestAnimationFrame(() => { window.scrollTo(0,0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0; });
     if (id === 'regional') renderComparison();
     if (id === 'trade') renderTradeCharts();
   });
 });
+
+// Mobile menu open/close (no-op on desktop where the topbar is display:none)
+const _menuBtn = document.getElementById('mobile-menu-btn');
+const _backdrop = document.getElementById('mobile-backdrop');
+if (_menuBtn) _menuBtn.addEventListener('click', () => document.body.classList.toggle('menu-open'));
+if (_backdrop) _backdrop.addEventListener('click', () => document.body.classList.remove('menu-open'));
 
 // ─────────────────────────────────────────────────────
 // DASHBOARD 1: PORTFOLIO

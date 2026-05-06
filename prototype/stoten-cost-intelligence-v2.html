@@ -1116,6 +1116,11 @@
 </div>
 
 <script>
+// Disable browser scroll restoration so revisiting the URL doesn't restore a stale position
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+// Ensure page starts at top on every load
+window.scrollTo(0, 0);
+
 // ─────────────────────────────────────────────────────
 // PROJECT DATA
 // ─────────────────────────────────────────────────────
@@ -1238,7 +1243,7 @@ document.querySelectorAll('.sb-item[data-dash]').forEach(item => {
     item.classList.add('active');
     document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
     document.getElementById('dash-' + id).classList.add('active');
-    window.scrollTo(0,0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0;
+    requestAnimationFrame(() => { window.scrollTo(0,0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0; });
     if (id === 'regional') renderComparison();
     if (id === 'trade') renderTradeCharts();
   });

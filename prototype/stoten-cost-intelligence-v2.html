@@ -8,15 +8,17 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; }
-    body { background: #f9fafb; }
+    html, body { font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; background: #f9fafb; }
 
-    .app { display: flex; height: 100vh; overflow: hidden; }
+    .app { display: block; }
 
     /* ─── SIDEBAR ─────────────────────────────────────── */
     .sidebar {
-      width: 220px; background: #111827; color: #9ca3af;
-      display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto;
+      position: fixed; top: 0; left: 0;
+      width: 220px; height: 100vh;
+      background: #111827; color: #9ca3af;
+      display: flex; flex-direction: column; overflow-y: auto;
+      z-index: 100;
     }
     .sb-header { padding: 20px 16px 14px; border-bottom: 1px solid #1f2937; }
     .sb-brand { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: #4b5563; text-transform: uppercase; margin-bottom: 3px; }
@@ -49,7 +51,7 @@
     .user-role { font-size: 11px; color: #6b7280; }
 
     /* ─── MAIN ────────────────────────────────────────── */
-    .main { flex: 1; overflow-y: auto; min-width: 0; }
+    .main { margin-left: 220px; min-height: 100vh; background: #f9fafb; }
 
     .dashboard { display: none; }
     .dashboard.active { display: block; }
@@ -1236,7 +1238,7 @@ document.querySelectorAll('.sb-item[data-dash]').forEach(item => {
     item.classList.add('active');
     document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
     document.getElementById('dash-' + id).classList.add('active');
-    document.querySelector('.main').scrollTop = 0;
+    window.scrollTo(0,0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0;
     if (id === 'regional') renderComparison();
     if (id === 'trade') renderTradeCharts();
   });

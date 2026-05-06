@@ -1238,6 +1238,7 @@ document.querySelectorAll('.sb-item[data-dash]').forEach(item => {
     item.classList.add('active');
     document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
     document.getElementById('dash-' + id).classList.add('active');
+    window.scrollTo(0, 0);
     if (id === 'regional') renderComparison();
     if (id === 'trade') renderTradeCharts();
   });
@@ -1642,6 +1643,7 @@ function navigateTo(dashId, activeSidebarDash) {
   }
   document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
   document.getElementById('dash-' + dashId).classList.add('active');
+  window.scrollTo(0, 0);
 }
 
 function openProject(projectId, fromDash) {

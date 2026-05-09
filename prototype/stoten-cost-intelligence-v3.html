@@ -1498,7 +1498,7 @@
                 <span style="font-size:11px;font-weight:500;color:var(--text-muted);">Building size</span>
                 <span style="font-size:13px;font-weight:600;color:var(--text);" id="qe-sf-val">120,000 SF</span>
               </div>
-              <input type="range" class="slider" id="qe-sf" min="50000" max="250000" step="5000" value="120000">
+              <input type="range" class="slider" id="qe-sf" min="50000" max="1500000" step="10000" value="120000">
             </div>
 
             <div style="margin-bottom:14px;">
@@ -1506,7 +1506,7 @@
                 <span style="font-size:11px;font-weight:500;color:var(--text-muted);">Clear height</span>
                 <span style="font-size:13px;font-weight:600;color:var(--text);" id="qe-ht-val">32 ft</span>
               </div>
-              <input type="range" class="slider" id="qe-ht" min="24" max="44" step="1" value="32">
+              <input type="range" class="slider" id="qe-ht" min="24" max="42" step="1" value="32">
             </div>
 
             <div style="margin-bottom:14px;">
@@ -3255,11 +3255,11 @@ function scInputsHtml(side) {
     </div>
     <div style="margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);"><span>Building size</span><span id="sc-sf-val-${side}" style="color:var(--text);font-weight:500;">130,000 SF</span></div>
-      <input type="range" class="slider" id="sc-sf-${side}" min="50000" max="250000" step="5000" value="130000">
+      <input type="range" class="slider" id="sc-sf-${side}" min="50000" max="1500000" step="10000" value="130000">
     </div>
     <div style="margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);"><span>Clear height</span><span id="sc-ht-val-${side}" style="color:var(--text);font-weight:500;">${side==='a'?'36':'40'} ft</span></div>
-      <input type="range" class="slider" id="sc-ht-${side}" min="24" max="44" step="1" value="${side==='a'?'36':'40'}">
+      <input type="range" class="slider" id="sc-ht-${side}" min="24" max="42" step="1" value="${side==='a'?'36':'40'}">
     </div>
     <div style="margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);"><span>FAR</span><span id="sc-far-val-${side}" style="color:var(--text);font-weight:500;">0.40</span></div>

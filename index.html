@@ -2,11 +2,123 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Stoten Cost Intelligence</title>
-  <meta http-equiv="refresh" content="0; url=prototype/stoten-cost-intelligence-v2.html">
-  <link rel="canonical" href="prototype/stoten-cost-intelligence-v2.html">
+  <style>
+    :root {
+      --bg: #fafaf7;
+      --surface: #ffffff;
+      --surface-alt: #f3f2ec;
+      --border: rgba(0, 0, 0, 0.08);
+      --text: #1a1a1a;
+      --text-muted: #5a5a57;
+      --text-faint: #888780;
+      --accent: #185fa5;
+      --accent-bg: #e6f1fb;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+      font-size: 15px; line-height: 1.55;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 880px; margin: 0 auto;
+      padding: 60px 24px 80px;
+    }
+    h1 {
+      font-size: 28px; font-weight: 600; letter-spacing: -0.01em;
+      margin-bottom: 8px;
+    }
+    .lede {
+      font-size: 15px; color: var(--text-muted);
+      max-width: 640px; margin-bottom: 36px;
+    }
+    .grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    @media (max-width: 700px) {
+      .grid { grid-template-columns: 1fr; }
+      .wrap { padding: 36px 18px 60px; }
+      h1 { font-size: 22px; }
+    }
+    .card {
+      display: block; text-decoration: none; color: inherit;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px 22px;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .card:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .card-tag {
+      display: inline-block; font-size: 10px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 3px 9px; border-radius: 999px;
+      background: var(--accent-bg); color: var(--accent);
+      margin-bottom: 14px;
+    }
+    .card-tag.v2 { background: var(--surface-alt); color: var(--text-muted); }
+    .card-title {
+      font-size: 18px; font-weight: 600; margin-bottom: 6px;
+    }
+    .card-desc {
+      font-size: 14px; color: var(--text-muted); line-height: 1.55;
+      margin-bottom: 14px;
+    }
+    .card-cta {
+      font-size: 13px; font-weight: 500; color: var(--accent);
+    }
+    .footer {
+      margin-top: 48px; padding-top: 18px;
+      border-top: 1px solid var(--border);
+      font-size: 12px; color: var(--text-faint);
+      display: flex; gap: 24px; flex-wrap: wrap;
+    }
+  </style>
 </head>
-<body style="font-family: system-ui, sans-serif; padding: 2rem; color: #374151;">
-  <p>Redirecting to <a href="prototype/stoten-cost-intelligence-v2.html">Stoten Cost Intelligence</a>&hellip;</p>
+<body>
+  <div class="wrap">
+    <h1>Stoten Cost Intelligence</h1>
+    <p class="lede">
+      Two prototypes for Stoten's CM and underwriting teams. Both use the same
+      10 illustrative historical projects under the hood. v2 is the original
+      retrospective dashboard; v3 is the predictive estimator-first redesign
+      built from CM feedback.
+    </p>
+
+    <div class="grid">
+      <a href="prototype/stoten-cost-intelligence-v3.html" class="card">
+        <span class="card-tag">v3 · Predictive estimator</span>
+        <div class="card-title">Quick Estimate, live AI analysis</div>
+        <p class="card-desc">
+          Slider-driven cost estimator with deterministic math + AI commentary.
+          Includes Bid Compare, Scenario Compare (e.g. 36' vs 40' clear), Trade
+          Library, and free-form AI Query. Designed in the stoten-index style.
+        </p>
+        <div class="card-cta">Open v3 →</div>
+      </a>
+
+      <a href="prototype/stoten-cost-intelligence-v2.html" class="card">
+        <span class="card-tag v2">v2 · Original</span>
+        <div class="card-title">Retrospective cost dashboard</div>
+        <p class="card-desc">
+          The first prototype: 11 panels for reviewing historical project
+          costs, comparing regions, tracking commodity trends, and browsing
+          the cost database. Kept intact for side-by-side comparison.
+        </p>
+        <div class="card-cta">Open v2 →</div>
+      </a>
+    </div>
+
+    <div class="footer">
+      <span>Demo · Sample Data · GitHub Pages</span>
+      <span style="margin-left:auto;">
+        <a href="https://github.com/djegan97-oss/stoten-cost-intelligence" style="color:inherit;text-decoration:underline;">Source on GitHub</a>
+      </span>
+    </div>
+  </div>
 </body>
 </html>

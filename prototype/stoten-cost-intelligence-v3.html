@@ -1,0 +1,3488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stoten Cost Intelligence — v3 · Predictive Estimator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    /* ─── STOTEN-INDEX DESIGN TOKENS ─────────────────────── */
+    :root {
+      --bg: #fafaf7;
+      --surface: #ffffff;
+      --surface-alt: #f3f2ec;
+      --border: rgba(0, 0, 0, 0.08);
+      --border-strong: rgba(0, 0, 0, 0.16);
+      --text: #1a1a1a;
+      --text-muted: #5a5a57;
+      --text-faint: #888780;
+      --accent: #185fa5;
+      --accent-bg: #e6f1fb;
+      --success: #0f6e56;
+      --success-bg: #e1f5ee;
+      --danger: #a32d2d;
+      --danger-bg: #fcebeb;
+      --warn: #ba7517;
+      --warn-bg: #faf0dc;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+      font-size: 15px; line-height: 1.55;
+      background: var(--bg); color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Help-target: dotted underline used on tooltip terms */
+    .help-target { border-bottom: 1px dotted var(--text-faint); cursor: help; }
+
+    /* Custom range slider — accent fill on the left of the thumb. The
+       --filled CSS var is set inline from JS as the value-to-percent. */
+    input[type="range"].slider {
+      -webkit-appearance: none; appearance: none;
+      background: transparent; width: 100%; height: 18px; cursor: pointer;
+    }
+    input[type="range"].slider::-webkit-slider-runnable-track {
+      height: 4px;
+      background: linear-gradient(to right,
+        var(--accent) 0%, var(--accent) var(--filled, 50%),
+        var(--border-strong) var(--filled, 50%), var(--border-strong) 100%);
+      border-radius: 999px;
+    }
+    input[type="range"].slider::-moz-range-track {
+      height: 4px; background: var(--border-strong); border-radius: 999px;
+    }
+    input[type="range"].slider::-moz-range-progress {
+      height: 4px; background: var(--accent); border-radius: 999px;
+    }
+    input[type="range"].slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--surface); border: 2px solid var(--accent);
+      margin-top: -5px; transition: transform 0.1s ease;
+    }
+    input[type="range"].slider::-moz-range-thumb {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--surface); border: 2px solid var(--accent);
+    }
+    input[type="range"].slider:hover::-webkit-slider-thumb { transform: scale(1.15); }
+    input[type="range"].slider:focus-visible { outline: none; }
+    input[type="range"].slider:focus-visible::-webkit-slider-thumb {
+      box-shadow: 0 0 0 3px var(--accent-bg);
+    }
+
+    /* Segmented-control buttons (used for type, region selectors) */
+    .seg-row { display: flex; gap: 4px; flex-wrap: wrap; }
+    .seg-btn {
+      font-family: inherit; font-size: 12px; font-weight: 500;
+      padding: 6px 10px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text-muted);
+      border-radius: 6px; cursor: pointer; transition: all 0.12s;
+    }
+    .seg-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .seg-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    /* Toggle */
+    .toggle-row { display: flex; align-items: center; gap: 10px; }
+    .toggle {
+      position: relative; width: 36px; height: 20px;
+      background: var(--border-strong); border-radius: 999px;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .toggle::after {
+      content: ''; position: absolute; top: 2px; left: 2px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--surface); transition: transform 0.15s;
+    }
+    .toggle.on { background: var(--accent); }
+    .toggle.on::after { transform: translateX(16px); }
+
+    /* Preset chips */
+    .preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+    .preset-chip {
+      font-family: inherit; font-size: 12px; font-weight: 500;
+      padding: 6px 12px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text-muted);
+      border-radius: 999px; cursor: pointer; transition: all 0.12s;
+    }
+    .preset-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* AI commentary block */
+    .ai-block {
+      background: var(--surface-alt); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px 16px; margin-top: 14px;
+    }
+    .ai-block-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px; font-size: 11px; font-weight: 600;
+      color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .ai-status {
+      font-size: 10px; padding: 2px 7px; border-radius: 4px;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text-faint); text-transform: none; letter-spacing: 0;
+    }
+    .ai-status.live { background: var(--success-bg); border-color: var(--success); color: var(--success); }
+    .ai-block-body { font-size: 13px; line-height: 1.6; color: var(--text); }
+    .ai-block-body p { margin-bottom: 8px; }
+    .ai-block-body p:last-child { margin-bottom: 0; }
+
+    /* Settings modal */
+    .settings-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 300;
+      display: none; align-items: center; justify-content: center;
+    }
+    .settings-overlay.open { display: flex; }
+    .settings-modal {
+      background: var(--surface); border-radius: 10px; padding: 22px 24px;
+      max-width: 460px; width: calc(100vw - 32px);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.18);
+    }
+    .settings-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .settings-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5; }
+    .settings-input {
+      width: 100%; font-family: inherit; font-size: 13px;
+      padding: 9px 11px; border: 1px solid var(--border-strong);
+      border-radius: 6px; background: var(--surface);
+      color: var(--text); margin-bottom: 14px;
+    }
+    .settings-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .btn-primary {
+      font-family: inherit; font-size: 13px; font-weight: 500;
+      padding: 8px 16px; background: var(--accent); color: #fff;
+      border: 0; border-radius: 6px; cursor: pointer;
+    }
+    .btn-primary:hover { background: #134878; }
+    .btn-secondary {
+      font-family: inherit; font-size: 13px; font-weight: 500;
+      padding: 8px 16px; background: var(--surface); color: var(--text-muted);
+      border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+    }
+
+    /* Settings gear in header */
+    .settings-gear {
+      background: transparent; border: 0; padding: 4px 8px;
+      font-size: 16px; color: var(--text-faint); cursor: pointer;
+    }
+    .settings-gear:hover { color: var(--text); }
+
+    .app { display: block; }
+
+    /* ─── SIDEBAR ─────────────────────────────────────── */
+    .sidebar {
+      position: fixed; top: 0; left: 0;
+      width: 220px; height: 100vh;
+      background: #111827; color: #9ca3af;
+      display: flex; flex-direction: column; overflow-y: auto;
+      z-index: 100;
+    }
+    .sb-header { padding: 20px 16px 14px; border-bottom: 1px solid #1f2937; }
+    .sb-brand { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: #4b5563; text-transform: uppercase; margin-bottom: 3px; }
+    .sb-title { font-size: 13px; font-weight: 600; color: #f3f4f6; line-height: 1.4; }
+    .sb-section { padding: 14px 0 4px; }
+    .sb-section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: #374151; text-transform: uppercase; padding: 0 16px 6px; }
+    .sb-item {
+      display: flex; align-items: center; gap: 8px; padding: 8px 16px;
+      font-size: 13px; color: #9ca3af; cursor: pointer;
+      transition: all 0.12s; border-left: 2px solid transparent;
+    }
+    .sb-item:hover { color: #e5e7eb; background: #1f2937; }
+    .sb-item.active { color: #f9fafb; background: #1f2937; border-left-color: var(--accent); }
+    .sb-icon { font-size: 11px; width: 16px; flex-shrink: 0; text-align: center; }
+    .sb-badge {
+      margin-left: auto; font-size: 10px; color: #4b5563;
+      background: #1f2937; padding: 1px 6px; border-radius: 10px;
+    }
+    .sb-item.active .sb-badge { background: #374151; color: #6b7280; }
+    .sb-footer {
+      margin-top: auto; padding: 12px 16px; border-top: 1px solid #1f2937;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .avatar {
+      width: 28px; height: 28px; border-radius: 50%; background: #374151;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 600; color: #9ca3af; flex-shrink: 0;
+    }
+    .user-name { font-size: 12px; font-weight: 500; color: #e5e7eb; }
+    .user-role { font-size: 11px; color: #6b7280; }
+
+    /* ─── MAIN ────────────────────────────────────────── */
+    .main { margin-left: 220px; min-height: 100vh; background: var(--bg); }
+
+    .dashboard { display: none; }
+    .dashboard.active { display: block; }
+
+    /* ─── DASH HEADER ─────────────────────────────────── */
+    .dash-header {
+      padding: 18px 28px 14px; border-bottom: 1px solid #e5e7eb;
+      background: var(--surface); display: flex; align-items: center;
+      justify-content: space-between; flex-shrink: 0; gap: 12px;
+    }
+    .dash-title { font-size: 15px; font-weight: 600; color: #111827; }
+    .dash-sub { font-size: 12px; color: #6b7280; margin-top: 2px; }
+    .demo-badge {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+      color: #92400e; background: #fffbeb; border: 1px solid #fcd34d;
+      padding: 3px 9px; border-radius: 4px; text-transform: uppercase; white-space: nowrap;
+    }
+
+    .dash-body { padding: 24px 28px; }
+
+    /* ─── KPI CARDS ───────────────────────────────────── */
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+    .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+    .kpi-label { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 7px; }
+    .kpi-val { font-size: 26px; font-weight: 700; color: #111827; line-height: 1; }
+    .kpi-note { font-size: 11px; color: #6b7280; margin-top: 5px; }
+    .kpi-note.warn { color: #d97706; }
+    .kpi-note.good { color: #059669; }
+
+    /* ─── CHART ROW ───────────────────────────────────── */
+    .chart-row { display: grid; grid-template-columns: 1fr 320px; gap: 14px; margin-bottom: 22px; }
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px; }
+    .chart-card-title { font-size: 12px; font-weight: 700; color: #111827; margin-bottom: 2px; }
+    .chart-card-sub { font-size: 11px; color: #6b7280; margin-bottom: 14px; }
+    .chart-wrap { position: relative; }
+
+    /* ─── TABLE CARD ──────────────────────────────────── */
+    .tcard { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .tcard-hdr {
+      padding: 12px 18px; border-bottom: 1px solid #e5e7eb;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .tcard-title { font-size: 13px; font-weight: 600; color: #111827; }
+    .tcard-sub { font-size: 11px; color: #9ca3af; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase;
+      letter-spacing: 0.06em; padding: 9px 14px; text-align: left;
+      border-bottom: 1px solid #e5e7eb; background: var(--bg); white-space: nowrap;
+    }
+    td { font-size: 12px; color: #374151; padding: 9px 14px; border-bottom: 1px solid #f3f4f6; white-space: nowrap; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg); }
+    .badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
+    .b-ind { background: #eff6ff; color: #1d4ed8; }
+    .b-flex { background: #f0fdf4; color: #15803d; }
+    .b-cold { background: #e0f2fe; color: #0369a1; }
+    .b-mix { background: #fdf4ff; color: #7e22ce; }
+    .var-over { color: #d97706; font-weight: 600; }
+    .var-under { color: #059669; font-weight: 600; }
+
+    /* ─── DASHBOARD 2: REGIONAL COMPARE ──────────────── */
+    .region-tabs { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg); margin-bottom: 20px; flex-wrap: wrap; }
+    .rtab {
+      padding: 8px 16px; font-size: 12px; font-weight: 500; color: #6b7280;
+      cursor: pointer; transition: all 0.12s; border-right: 1px solid #e5e7eb;
+      white-space: nowrap;
+    }
+    .rtab:last-child { border-right: none; }
+    .rtab:hover { background: #f3f4f6; color: #374151; }
+    .rtab.active { background: #111827; color: #f9fafb; font-weight: 600; }
+    .rtab-count { font-size: 10px; opacity: 0.6; margin-left: 4px; }
+
+    .selectors { display: grid; grid-template-columns: 1fr 48px 1fr; gap: 12px; align-items: end; margin-bottom: 22px; }
+    .sel-group { display: flex; flex-direction: column; gap: 5px; }
+    .sel-label { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; }
+    .sel-label span { font-size: 11px; font-weight: 400; color: #9ca3af; text-transform: none; letter-spacing: 0; }
+    select.proj-select {
+      padding: 9px 32px 9px 12px; border: 1px solid #d1d5db; border-radius: 6px;
+      font-size: 13px; font-weight: 500; color: #111827; background: var(--surface);
+      cursor: pointer; width: 100%; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3E%3Cpath d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 8px center; background-size: 16px;
+      font-family: inherit;
+    }
+    select.proj-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .vs-box {
+      font-size: 12px; font-weight: 700; color: #9ca3af; background: #f3f4f6;
+      border: 1px solid var(--border); padding: 9px 10px; border-radius: 6px;
+      text-align: center; align-self: end;
+    }
+
+    /* Comparison table */
+    .comp-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .comp-table { width: 100%; border-collapse: collapse; }
+    .comp-table th {
+      padding: 11px 16px; font-size: 10px; font-weight: 700; color: #6b7280;
+      text-transform: uppercase; letter-spacing: 0.07em; background: var(--bg);
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .comp-table th.proj-col { text-align: center; color: #374151; font-size: 12px; }
+    .comp-table th.proj-col.a { background: #eff6ff; color: #1e40af; }
+    .comp-table th.proj-col.b { background: #f0fdf4; color: #15803d; }
+    .comp-table td { padding: 9px 16px; border-bottom: 1px solid #f3f4f6; font-size: 12px; }
+    .comp-table tr:last-child td { border-bottom: none; }
+    .comp-table .row-label { color: #6b7280; font-weight: 500; width: 180px; }
+    .comp-table .row-label small { display: block; font-size: 10px; color: #9ca3af; font-weight: 400; }
+    .comp-table .val-a { text-align: center; font-weight: 600; color: #1e40af; }
+    .comp-table .val-b { text-align: center; font-weight: 600; color: #15803d; }
+    .comp-table .val-delta { text-align: center; font-size: 11px; font-weight: 700; }
+    .comp-table .section-row td { background: var(--bg); font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; padding: 6px 16px; border-bottom: 1px solid #e5e7eb; }
+    .delta-higher { color: #d97706; }
+    .delta-lower { color: #059669; }
+    .delta-same { color: #9ca3af; }
+
+    .norm-panel {
+      margin-top: 16px; background: #f8fafc; border: 1px solid #e2e8f0;
+      border-radius: 8px; padding: 14px 16px;
+    }
+    .norm-panel-title { font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 6px; letter-spacing: 0.04em; }
+    .norm-panel-body { font-size: 11px; color: #64748b; line-height: 1.7; }
+    .norm-panel-body strong { color: #334155; }
+
+    /* ─── DASHBOARD 3: TRADE PRICING ──────────────────── */
+    .trade-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .mkt-filter { display: flex; gap: 6px; flex-wrap: wrap; }
+    .mf-btn {
+      padding: 5px 12px; font-size: 11px; font-weight: 500; color: #6b7280;
+      border: 1px solid #d1d5db; border-radius: 20px; cursor: pointer;
+      transition: all 0.12s; background: var(--surface); font-family: inherit;
+    }
+    .mf-btn:hover { border-color: #9ca3af; color: #374151; }
+    .mf-btn.active { background: #111827; color: #f9fafb; border-color: #111827; }
+    .trade-note { font-size: 11px; color: #9ca3af; }
+
+    .trade-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 22px; }
+    .trade-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px; }
+    .tc-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+    .tc-commodity { font-size: 13px; font-weight: 700; color: #111827; }
+    .tc-unit { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+    .tc-current { text-align: right; }
+    .tc-price { font-size: 24px; font-weight: 700; color: #111827; }
+    .tc-trend { font-size: 11px; font-weight: 600; margin-top: 3px; }
+    .trend-up { color: #d97706; }
+    .trend-down { color: #059669; }
+    .tc-chart { position: relative; height: 90px; }
+
+    .trade-summary { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .trade-summary-hdr { padding: 12px 18px; border-bottom: 1px solid #e5e7eb; font-size: 12px; font-weight: 700; color: #111827; display: flex; justify-content: space-between; align-items: center; }
+    .trade-summary-note { font-size: 10px; color: #9ca3af; font-weight: 400; }
+
+    /* Trade table tabs */
+    .trade-tabs { display: flex; border-bottom: 1px solid #e5e7eb; overflow-x: auto; }
+    .ttab {
+      padding: 10px 16px; font-size: 12px; font-weight: 500; color: #6b7280;
+      cursor: pointer; transition: all 0.12s; border-right: 1px solid #e5e7eb;
+      white-space: nowrap; background: var(--bg); flex-shrink: 0;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+    }
+    .ttab:last-child { border-right: none; }
+    .ttab:hover { background: #f3f4f6; color: #374151; }
+    .ttab.active { background: var(--surface); color: #111827; font-weight: 600; border-bottom-color: var(--accent); }
+    .ttab-panel { display: none; }
+    .ttab-panel.active { display: block; }
+
+    /* Per-commodity regional detail table */
+    .comm-table { width: 100%; border-collapse: collapse; }
+    .comm-table th {
+      font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase;
+      letter-spacing: 0.06em; padding: 9px 16px; border-bottom: 1px solid #e5e7eb;
+      background: var(--bg); white-space: nowrap;
+    }
+    .comm-table th.reg-th { text-align: right; }
+    .comm-table th.nat-th { background: #eff6ff; color: #1e40af; text-align: right; }
+    .comm-table td { padding: 7px 16px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+    .comm-table tr:last-child td { border-bottom: none; }
+    .comm-table tr:hover td { background: #fafafa; }
+    .tc-qtr { font-size: 12px; font-weight: 700; color: #374151; width: 80px; }
+    .tc-cell { text-align: right; min-width: 110px; }
+    .tc-cell.nat-col { background: #f8fbff; }
+    .tc-cell-price { font-size: 12px; font-weight: 600; color: #111827; font-family: 'SF Mono', 'Cascadia Code', monospace; }
+    .tc-cell-delta { font-size: 10px; font-weight: 600; margin-top: 2px; }
+    .tc-delta-up { color: #d97706; }
+    .tc-delta-down { color: #059669; }
+    .tc-delta-none { color: #d1d5db; }
+    .comm-row-alt td { background: #fafafa; }
+    .comm-row-alt td.nat-col { background: #f0f7ff; }
+
+    /* Source note */
+    .source-note { font-size: 10px; color: #9ca3af; margin-top: 10px; text-align: center; }
+
+    /* ─── PROJECT DETAIL ──────────────────────────────── */
+    .back-btn {
+      padding: 6px 12px; font-size: 12px; font-weight: 500; color: #6b7280;
+      background: #f3f4f6; border: 1px solid var(--border); border-radius: 6px;
+      cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 5px;
+    }
+    .back-btn:hover { background: #e5e7eb; color: #374151; }
+    .compare-cta-btn {
+      padding: 8px 18px; font-size: 12px; font-weight: 600;
+      background: #111827; color: #fff; border: none; border-radius: 6px;
+      cursor: pointer; font-family: inherit;
+    }
+    .compare-cta-btn:hover { background: #1f2937; }
+    .proj-specs-strip { display: grid; grid-template-columns: repeat(6, 1fr); }
+    .proj-spec-cell {
+      padding: 14px 18px; border-right: 1px solid #e5e7eb;
+    }
+    .proj-spec-cell:last-child { border-right: none; }
+    .proj-spec-label { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 5px; }
+    .proj-spec-val { font-size: 14px; font-weight: 600; color: #111827; }
+    .proj-spec-sub { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+    .ranking-note {
+      margin-top: 14px; background: #f8fafc; border: 1px solid #e2e8f0;
+      border-radius: 8px; padding: 12px 18px; font-size: 12px; color: #64748b; line-height: 1.7;
+    }
+    .ranking-note strong { color: #334155; }
+
+    /* ─── MOBILE TOPBAR + BACKDROP (hidden by default) ──── */
+    .mobile-topbar { display: none; }
+    .mobile-backdrop { display: none; }
+
+    /* ─── MOBILE LAYOUT (≤ 768px) ────────────────────────── */
+    @media (max-width: 768px) {
+      .mobile-topbar {
+        display: flex; align-items: center; gap: 12px;
+        padding: 11px 14px; background: #111827; color: #f3f4f6;
+        position: sticky; top: 0; z-index: 50;
+        border-bottom: 1px solid #1f2937;
+      }
+      .mobile-menu-btn {
+        background: transparent; border: 0; color: inherit;
+        font-size: 22px; line-height: 1; padding: 0; cursor: pointer;
+        font-family: inherit;
+      }
+      .mobile-title {
+        font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+      }
+
+      /* Sidebar slides in from left */
+      .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.22s ease;
+        z-index: 200;
+      }
+      body.menu-open .sidebar { transform: translateX(0); }
+
+      /* Backdrop appears when menu open */
+      .mobile-backdrop {
+        display: block; position: fixed; inset: 0;
+        background: rgba(0,0,0,0.5); z-index: 150;
+        opacity: 0; pointer-events: none;
+        transition: opacity 0.2s ease;
+      }
+      body.menu-open .mobile-backdrop {
+        opacity: 1; pointer-events: auto;
+      }
+
+      /* Main content no longer offset for fixed sidebar */
+      .main { margin-left: 0; }
+
+      /* KPI cards: 4 → 2 columns */
+      .kpi-row { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+      .kpi-card { padding: 12px; }
+      .kpi-val { font-size: 22px; }
+
+      /* Stylesheet grids stack to single column */
+      .chart-row,
+      .selectors,
+      .trade-grid,
+      .proj-specs-strip { grid-template-columns: 1fr !important; }
+
+      /* Inline grids (project history cards, comparison columns,
+         foundation 2-col, estimate form, bid compare 1fr/340, etc.) */
+      [style*="grid-template-columns"]:not(.kpi-row) {
+        grid-template-columns: 1fr !important;
+      }
+      /* Allow grid children to shrink below min-content so wide tables
+         don't force horizontal overflow on the column. */
+      [style*="grid-template-columns"]:not(.kpi-row) > * { min-width: 0; }
+
+      /* Tables horizontal-scroll inside their card */
+      .tcard { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+      /* Tighter padding so content doesn't crash into edges */
+      .dash-body { padding: 14px 14px; }
+      .dash-header { padding: 14px 14px 10px; flex-wrap: wrap; gap: 8px; }
+      .dash-title { font-size: 14px; }
+      .dash-sub { font-size: 11px; }
+      .demo-badge { font-size: 9px; padding: 2px 7px; }
+
+      /* Region tabs and trade tabs already wrap/scroll — no change */
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ─── MOBILE TOP BAR (≤768px only) ───────── -->
+  <div class="mobile-topbar">
+    <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Open menu">☰</button>
+    <div class="mobile-title">STOTEN · Cost Intelligence</div>
+  </div>
+  <div class="mobile-backdrop" id="mobile-backdrop"></div>
+
+  <!-- ─── SIDEBAR ─────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sb-header">
+      <div class="sb-brand">Stoten</div>
+      <div class="sb-title">Cost Intelligence</div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-section-label">Estimate</div>
+      <div class="sb-item active" data-dash="estimate">
+        <span class="sb-icon">◎</span> Quick Estimate
+      </div>
+      <div class="sb-item" data-dash="bidcompare">
+        <span class="sb-icon">⇌</span> Bid Compare
+      </div>
+      <div class="sb-item" data-dash="scenario">
+        <span class="sb-icon">⇄</span> Scenario Compare
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-section-label">Evidence</div>
+      <div class="sb-item" data-dash="tradelib">
+        <span class="sb-icon">⊟</span> Trade Library
+      </div>
+      <div class="sb-item" data-dash="costdb">
+        <span class="sb-icon">⊡</span> Project Library
+        <span class="sb-badge">10</span>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-section-label">Context</div>
+      <div class="sb-item" data-dash="trade">
+        <span class="sb-icon">◈</span> Trade Pricing Trends
+      </div>
+      <div class="sb-item" data-dash="portfolio">
+        <span class="sb-icon">▦</span> Portfolio Summary
+      </div>
+      <div class="sb-item" data-dash="regional">
+        <span class="sb-icon">⊞</span> Regional Compare
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-section-label">Intelligence</div>
+      <div class="sb-item" data-dash="aiquery">
+        <span class="sb-icon">✦</span> AI Query
+      </div>
+      <div class="sb-item" data-dash="methodology">
+        <span class="sb-icon">⬡</span> Methodology
+      </div>
+    </div>
+
+    <div class="sb-footer">
+      <div class="avatar">CM</div>
+      <div>
+        <div class="user-name">Chris M.</div>
+        <div class="user-role">Construction Mgmt</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ─── MAIN ────────────────────────────────── -->
+  <main class="main">
+
+    <!-- ══════════════════════════════════════════
+         DASHBOARD 1: PORTFOLIO VIEW
+    ══════════════════════════════════════════ -->
+    <div id="dash-portfolio" class="dashboard">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Portfolio Overview</div>
+          <div class="dash-sub">National cost performance · 10 projects · Updated today</div>
+        </div>
+        <div class="demo-badge">Demo · Sample Data</div>
+      </div>
+      <div class="dash-body">
+        <div class="kpi-row">
+          <div class="kpi-card">
+            <div class="kpi-label">Projects in Database</div>
+            <div class="kpi-val">10</div>
+            <div class="kpi-note">2021 – 2025 vintage</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Total Cost Data Points</div>
+            <div class="kpi-val">40</div>
+            <div class="kpi-note">4 categories per project</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Avg Budget Variance</div>
+            <div class="kpi-val">+4.8%</div>
+            <div class="kpi-note warn">↑ Over budget on average</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Regions Covered</div>
+            <div class="kpi-val">4</div>
+            <div class="kpi-note">SW · SC · SE · Midwest</div>
+          </div>
+        </div>
+
+        <div class="chart-row">
+          <div class="chart-card">
+            <div class="chart-card-title">Budget vs. Actual — By Project</div>
+            <div class="chart-card-sub">Total project cost ($M) · All vintages · Sorted by actual cost</div>
+            <div class="chart-wrap"><canvas id="chart-bva" height="210"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-title">Portfolio by Region</div>
+            <div class="chart-card-sub">Project count by geographic region</div>
+            <div class="chart-wrap"><canvas id="chart-region" height="210"></canvas></div>
+          </div>
+        </div>
+
+        <div class="tcard" style="overflow-x:auto;">
+          <div class="tcard-hdr">
+            <div>
+              <div class="tcard-title">All Projects</div>
+              <div class="tcard-sub">Click a row to open in Regional Compare →</div>
+            </div>
+          </div>
+          <table id="portfolio-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Type</th>
+                <th>Region</th>
+                <th>Market</th>
+                <th>GC</th>
+                <th>Size (SF)</th>
+                <th>Budget</th>
+                <th>Actual</th>
+                <th>Variance</th>
+                <th>Year</th>
+              </tr>
+            </thead>
+            <tbody id="portfolio-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         DASHBOARD 2: REGIONAL COMPARE
+    ══════════════════════════════════════════ -->
+    <div id="dash-regional" class="dashboard">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Regional Project Comparison</div>
+          <div class="dash-sub">Side-by-side cost analysis · Normalized for size, clear height &amp; site premiums</div>
+        </div>
+        <div class="demo-badge">Demo · Sample Data</div>
+      </div>
+      <div class="dash-body">
+        <!-- Region filter tabs -->
+        <div class="region-tabs" id="region-tabs">
+          <div class="rtab active" data-region="all">All Regions <span class="rtab-count">(10)</span></div>
+          <div class="rtab" data-region="Southwest">Southwest <span class="rtab-count">(2)</span></div>
+          <div class="rtab" data-region="South Central">South Central <span class="rtab-count">(3)</span></div>
+          <div class="rtab" data-region="Southeast">Southeast <span class="rtab-count">(3)</span></div>
+          <div class="rtab" data-region="Midwest">Midwest <span class="rtab-count">(2)</span></div>
+        </div>
+
+        <!-- Project selectors -->
+        <div class="selectors">
+          <div class="sel-group">
+            <div class="sel-label">Project A <span>— select to compare</span></div>
+            <select class="proj-select" id="sel-a"></select>
+          </div>
+          <div class="vs-box">VS</div>
+          <div class="sel-group">
+            <div class="sel-label">Project B <span>— select to compare</span></div>
+            <select class="proj-select" id="sel-b"></select>
+          </div>
+        </div>
+
+        <!-- Comparison table -->
+        <div class="comp-card">
+          <table class="comp-table">
+            <thead>
+              <tr>
+                <th style="width:190px;">Metric</th>
+                <th class="proj-col a" id="hdr-a">—</th>
+                <th style="width:90px; text-align:center;">Delta</th>
+                <th class="proj-col b" id="hdr-b">—</th>
+              </tr>
+            </thead>
+            <tbody id="comp-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- Normalization notes -->
+        <div class="norm-panel">
+          <div class="norm-panel-title">⚖ Normalization Methodology</div>
+          <div class="norm-panel-body">
+            <strong>Size normalization:</strong> All $/SF metrics are calculated on gross building SF, enabling like-for-like comparison across buildings of different footprints.<br>
+            <strong>Clear height premium:</strong> Each foot of clear height above the 28-ft baseline adds an estimated <strong>$0.45/SF</strong> to structural and mechanical costs. The "Height-Adj Cost/SF" strips this out to compare buildings at equivalent ceiling heights.<br>
+            <strong>Site premium:</strong> Land and site development costs are isolated and shown per acre. Buildings on larger or more constrained sites will show higher site cost/acre.<br>
+            <strong>Dock door cost:</strong> Total actual cost divided by number of loading dock doors — a useful trade-level proxy for dock-intensive facilities.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         DASHBOARD 3: TRADE PRICING
+    ══════════════════════════════════════════ -->
+    <div id="dash-trade" class="dashboard">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Trade-Level Commodity Pricing</div>
+          <div class="dash-sub">Key material &amp; trade categories · Regional trends · Q1 2023 – Q1 2025</div>
+        </div>
+        <div class="demo-badge">Demo · Sample Data</div>
+      </div>
+      <div class="dash-body">
+        <div class="trade-top">
+          <div class="mkt-filter">
+            <button class="mf-btn active" data-mkt="all">All Regions</button>
+            <button class="mf-btn" data-mkt="Southwest">Southwest</button>
+            <button class="mf-btn" data-mkt="South Central">South Central</button>
+            <button class="mf-btn" data-mkt="Southeast">Southeast</button>
+            <button class="mf-btn" data-mkt="Midwest">Midwest</button>
+          </div>
+          <div class="trade-note">* Indicative pricing — regional Sun Belt / Midwest average</div>
+        </div>
+
+        <div class="trade-grid">
+          <div class="trade-card">
+            <div class="tc-top">
+              <div>
+                <div class="tc-commodity">Dock Doors</div>
+                <div class="tc-unit">Installed cost per door unit</div>
+              </div>
+              <div class="tc-current">
+                <div class="tc-price" id="dock-price">$6,200</div>
+                <div class="tc-trend trend-up" id="dock-trend">↑ +2.5% vs prior qtr</div>
+              </div>
+            </div>
+            <div class="tc-chart"><canvas id="chart-dock"></canvas></div>
+          </div>
+          <div class="trade-card">
+            <div class="tc-top">
+              <div>
+                <div class="tc-commodity">Tilt-Up Panel</div>
+                <div class="tc-unit">$/SF of wall panel installed</div>
+              </div>
+              <div class="tc-current">
+                <div class="tc-price" id="tilt-price">$50.50</div>
+                <div class="tc-trend trend-up" id="tilt-trend">↑ +3.1% vs prior qtr</div>
+              </div>
+            </div>
+            <div class="tc-chart"><canvas id="chart-tilt"></canvas></div>
+          </div>
+          <div class="trade-card">
+            <div class="tc-top">
+              <div>
+                <div class="tc-commodity">Structural Steel</div>
+                <div class="tc-unit">$/ton fabricated &amp; erected</div>
+              </div>
+              <div class="tc-current">
+                <div class="tc-price" id="steel-price">$3,650</div>
+                <div class="tc-trend trend-up" id="steel-trend">↑ +4.3% vs prior qtr</div>
+              </div>
+            </div>
+            <div class="tc-chart"><canvas id="chart-steel"></canvas></div>
+          </div>
+          <div class="trade-card">
+            <div class="tc-top">
+              <div>
+                <div class="tc-commodity">Site Work</div>
+                <div class="tc-unit">$/SF of improved site area</div>
+              </div>
+              <div class="tc-current">
+                <div class="tc-price" id="site-price">$10.50</div>
+                <div class="tc-trend trend-up" id="site-trend">↑ +2.9% vs prior qtr</div>
+              </div>
+            </div>
+            <div class="tc-chart"><canvas id="chart-site"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Tabbed tables -->
+        <div class="trade-summary">
+          <div class="trade-tabs">
+            <div class="ttab active" data-ttab="summary">All Commodities</div>
+            <div class="ttab" data-ttab="dock">Dock Doors</div>
+            <div class="ttab" data-ttab="tilt">Tilt-Up Panel</div>
+            <div class="ttab" data-ttab="steel">Structural Steel</div>
+            <div class="ttab" data-ttab="site">Site Work</div>
+          </div>
+
+          <!-- Summary panel -->
+          <div class="ttab-panel active" id="panel-summary">
+            <div class="trade-summary-hdr">
+              All Commodities — Quarterly Summary
+              <span class="trade-summary-note">9 quarters · Q1 2023 – Q1 2025 · National average</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Quarter</th>
+                  <th>Dock Doors ($/door)</th>
+                  <th>QoQ Δ</th>
+                  <th>Tilt Panel ($/SF)</th>
+                  <th>QoQ Δ</th>
+                  <th>Structural Steel ($/ton)</th>
+                  <th>QoQ Δ</th>
+                  <th>Site Work ($/SF)</th>
+                  <th>QoQ Δ</th>
+                </tr>
+              </thead>
+              <tbody id="trade-tbody"></tbody>
+            </table>
+          </div>
+
+          <!-- Dock Doors detail -->
+          <div class="ttab-panel" id="panel-dock">
+            <div class="trade-summary-hdr">
+              Dock Doors — Installed cost per door unit
+              <span class="trade-summary-note">Period-over-period Δ by region · Q1 2023 – Q1 2025</span>
+            </div>
+            <table class="comm-table">
+              <thead><tr>
+                <th>Quarter</th>
+                <th class="nat-th">National Avg</th>
+                <th class="reg-th">Southwest</th>
+                <th class="reg-th">South Central</th>
+                <th class="reg-th">Southeast</th>
+                <th class="reg-th">Midwest</th>
+              </tr></thead>
+              <tbody id="detail-dock"></tbody>
+            </table>
+          </div>
+
+          <!-- Tilt Panel detail -->
+          <div class="ttab-panel" id="panel-tilt">
+            <div class="trade-summary-hdr">
+              Tilt-Up Panel — $/SF of wall panel installed
+              <span class="trade-summary-note">Period-over-period Δ by region · Q1 2023 – Q1 2025</span>
+            </div>
+            <table class="comm-table">
+              <thead><tr>
+                <th>Quarter</th>
+                <th class="nat-th">National Avg</th>
+                <th class="reg-th">Southwest</th>
+                <th class="reg-th">South Central</th>
+                <th class="reg-th">Southeast</th>
+                <th class="reg-th">Midwest</th>
+              </tr></thead>
+              <tbody id="detail-tilt"></tbody>
+            </table>
+          </div>
+
+          <!-- Structural Steel detail -->
+          <div class="ttab-panel" id="panel-steel">
+            <div class="trade-summary-hdr">
+              Structural Steel — $/ton fabricated &amp; erected
+              <span class="trade-summary-note">Period-over-period Δ by region · Q1 2023 – Q1 2025</span>
+            </div>
+            <table class="comm-table">
+              <thead><tr>
+                <th>Quarter</th>
+                <th class="nat-th">National Avg</th>
+                <th class="reg-th">Southwest</th>
+                <th class="reg-th">South Central</th>
+                <th class="reg-th">Southeast</th>
+                <th class="reg-th">Midwest</th>
+              </tr></thead>
+              <tbody id="detail-steel"></tbody>
+            </table>
+          </div>
+
+          <!-- Site Work detail -->
+          <div class="ttab-panel" id="panel-site">
+            <div class="trade-summary-hdr">
+              Site Work — $/SF of improved site area
+              <span class="trade-summary-note">Period-over-period Δ by region · Q1 2023 – Q1 2025</span>
+            </div>
+            <table class="comm-table">
+              <thead><tr>
+                <th>Quarter</th>
+                <th class="nat-th">National Avg</th>
+                <th class="reg-th">Southwest</th>
+                <th class="reg-th">South Central</th>
+                <th class="reg-th">Southeast</th>
+                <th class="reg-th">Midwest</th>
+              </tr></thead>
+              <tbody id="detail-site"></tbody>
+            </table>
+          </div>
+
+        </div>
+        <div class="source-note">* Indicative pricing based on regional contractor survey data. For budgeting reference only — confirm with current bid data before committing.</div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         PROJECT DETAIL (dynamic)
+    ══════════════════════════════════════════ -->
+    <div id="dash-project" class="dashboard">
+      <div class="dash-header">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <button class="back-btn" id="proj-back-btn">← Back</button>
+          <div>
+            <div class="dash-title" id="proj-title">Project Detail</div>
+            <div class="dash-sub" id="proj-sub"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="compare-cta-btn" id="proj-compare-btn">⇌ Compare to Another Project</button>
+          <div class="demo-badge">Demo · Sample Data</div>
+        </div>
+      </div>
+      <div class="dash-body">
+
+        <!-- KPI cards -->
+        <div class="kpi-row" id="proj-kpis"></div>
+
+        <!-- PRIMARY: Full-width cost breakdown table -->
+        <div class="tcard" style="margin-bottom:16px;overflow:hidden;">
+          <div class="tcard-hdr">
+            <div class="tcard-title">Cost Breakdown — Budget vs. Actual</div>
+            <div class="tcard-sub" id="proj-breakdown-sub"></div>
+          </div>
+          <table id="proj-breakdown">
+            <thead>
+              <tr>
+                <th style="width:160px;">Category</th>
+                <th style="text-align:right;">Budget ($M)</th>
+                <th style="text-align:right;color:#9ca3af;">$/SF</th>
+                <th style="text-align:right;background:#f0f9ff;color:#0369a1;">Actual ($M)</th>
+                <th style="text-align:right;background:#f0f9ff;color:#0369a1;">$/SF</th>
+                <th style="text-align:right;">Δ ($M)</th>
+                <th style="text-align:right;">Δ %</th>
+                <th style="text-align:right;color:#9ca3af;">% of Total</th>
+              </tr>
+            </thead>
+            <tbody id="proj-breakdown-body"></tbody>
+          </table>
+        </div>
+
+        <!-- AUXILIARY: small chart + specs side by side -->
+        <div style="display:grid;grid-template-columns:360px 1fr;gap:14px;margin-bottom:14px;">
+          <div class="chart-card" style="padding:14px;">
+            <div class="chart-card-title" style="font-size:11px;">Budget vs. Actual by Category</div>
+            <div class="chart-card-sub" style="margin-bottom:10px;">Visual overview ($M)</div>
+            <div class="chart-wrap"><canvas id="proj-cat-chart" height="140"></canvas></div>
+          </div>
+          <div class="tcard" style="overflow:hidden;">
+            <div class="tcard-hdr"><div class="tcard-title">Project Specs</div></div>
+            <div class="proj-specs-strip" id="proj-specs-strip" style="grid-template-columns:repeat(3,1fr);"></div>
+          </div>
+        </div>
+
+        <!-- Portfolio ranking note -->
+        <div class="ranking-note" id="proj-ranking"></div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         COST DATABASE
+    ══════════════════════════════════════════ -->
+    <div id="dash-costdb" class="dashboard">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Project Library</div>
+          <div class="dash-sub">All historical Stoten projects with full cost breakdown · click any row to drill into project detail.</div>
+        </div>
+        <div class="demo-badge">Demo · Sample Data</div>
+      </div>
+      <div class="dash-body">
+        <div class="tcard">
+          <div class="tcard-hdr">
+            <div class="tcard-title">Project Cost Breakdown — by Category</div>
+            <div class="tcard-sub">All costs in $M · $/SF calculated on gross building SF</div>
+          </div>
+          <table id="costdb-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Year</th>
+                <th>SF</th>
+                <th>Found.</th>
+                <th>Steel</th>
+                <th>Panels</th>
+                <th>Roof</th>
+                <th>Mech</th>
+                <th>Elec</th>
+                <th>Plumb/FP</th>
+                <th>Dock Eq.</th>
+                <th>Site</th>
+                <th>GC/Fee</th>
+                <th style="background:#f0f9ff;color:#0369a1;">Total</th>
+                <th style="background:#f0f9ff;color:#0369a1;">$/SF</th>
+              </tr>
+            </thead>
+            <tbody id="costdb-tbody"></tbody>
+            <tfoot id="costdb-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         PROJECT HISTORY
+    ══════════════════════════════════════════ -->
+    <div id="dash-history" class="dashboard">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Project History</div>
+          <div class="dash-sub">All delivered projects · 2021 – 2025</div>
+        </div>
+        <div class="demo-badge">Demo · Sample Data</div>
+      </div>
+      <div class="dash-body">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;" id="history-cards"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         DATA INGEST
+    ══════════════════════════════════════════ -->
+    <div id="dash-ingest" class="dashboard">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Data Ingest</div>
+          <div class="dash-sub">Upload cost data from GC closeout packages, pay apps, or manual entry</div>
+        </div>
+        <div class="demo-badge">Demo · Sample Data</div>
+      </div>
+      <div class="dash-body">
+
+        <!-- Demo notice -->
+        <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:13px 18px;margin-bottom:18px;display:flex;align-items:flex-start;gap:12px;">
+          <div style="font-size:16px;flex-shrink:0;">⚠️</div>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:3px;">Illustration Only — Data Ingest Not Yet Connected</div>
+            <div style="font-size:12px;color:#b45309;line-height:1.6;">This is a preview of how data will be added to the database in the production version. The upload and manual entry forms below are <strong>not functional</strong> — no data will be saved. When a live database is connected, this panel will accept GC closeout packages, AIA G702/G703 pay apps, and manual entries that flow directly into the project database.</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 340px;gap:16px;">
+          <div class="tcard" style="padding:0;opacity:0.75;">
+            <div class="tcard-hdr"><div class="tcard-title">Upload Cost Document</div><div class="tcard-sub" style="color:#d97706;">Preview only</div></div>
+            <div style="padding:32px;text-align:center;border-bottom:1px solid #e5e7eb;">
+              <div style="border:2px dashed #d1d5db;border-radius:10px;padding:40px 24px;background:#fafafa;">
+                <div style="font-size:28px;margin-bottom:10px;">⬆</div>
+                <div style="font-weight:600;color:#374151;margin-bottom:6px;">Drop files here or click to browse</div>
+                <div style="font-size:12px;color:#9ca3af;">Accepted: .xlsx, .csv, .pdf (GC closeout, pay app, AIA G702)</div>
+                <button onclick="alert('Data Ingest is not yet connected to a live database. This is an illustration of how the upload flow will work in the production version.')" style="margin-top:16px;padding:8px 20px;font-size:12px;font-weight:600;background:#9ca3af;color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:inherit;">Browse Files — Coming Soon</button>
+              </div>
+            </div>
+            <div style="padding:16px 20px;">
+              <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;">Or enter manually</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div><div style="font-size:11px;color:#6b7280;margin-bottom:4px;">Project Name</div><input style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:inherit;" placeholder="e.g. Phoenix Distribution Ctr" /></div>
+                <div><div style="font-size:11px;color:#6b7280;margin-bottom:4px;">Market / Region</div><input style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:inherit;" placeholder="e.g. Chicago, IL" /></div>
+                <div><div style="font-size:11px;color:#6b7280;margin-bottom:4px;">Building SF</div><input style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:inherit;" placeholder="e.g. 135,000" /></div>
+                <div><div style="font-size:11px;color:#6b7280;margin-bottom:4px;">GC</div><input style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:inherit;" placeholder="e.g. Power Construction" /></div>
+                <div><div style="font-size:11px;color:#6b7280;margin-bottom:4px;">Total Cost ($M)</div><input style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:inherit;" placeholder="e.g. 17.2" /></div>
+                <div><div style="font-size:11px;color:#6b7280;margin-bottom:4px;">Year Delivered</div><input style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:inherit;" placeholder="e.g. 2024" /></div>
+              </div>
+              <button onclick="alert('Data Ingest is not yet connected to a live database. This is an illustration of how manual entry will work in the production version.')" style="margin-top:14px;padding:9px 20px;font-size:12px;font-weight:600;background:#9ca3af;color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:inherit;">Add to Database — Coming Soon</button>
+            </div>
+          </div>
+          <div>
+            <div class="tcard" style="margin-bottom:14px;">
+              <div class="tcard-hdr"><div class="tcard-title">Recent Ingests</div><div class="tcard-sub">Last 30 days</div></div>
+              <div style="padding:0;">
+                <div style="padding:10px 16px;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center;">
+                  <div><div style="font-size:12px;font-weight:600;color:#374151;">Katherines Crossing — Final Closeout</div><div style="font-size:11px;color:#9ca3af;margin-top:2px;">Apr 28, 2025 · GC Package</div></div>
+                  <span style="font-size:10px;font-weight:600;color:#059669;background:#f0fdf4;padding:2px 7px;border-radius:4px;">Complete</span>
+                </div>
+                <div style="padding:10px 16px;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center;">
+                  <div><div style="font-size:12px;font-weight:600;color:#374151;">Wolf Rd Distribution — Pay App #18</div><div style="font-size:11px;color:#9ca3af;margin-top:2px;">Apr 15, 2025 · AIA G702</div></div>
+                  <span style="font-size:10px;font-weight:600;color:#059669;background:#f0fdf4;padding:2px 7px;border-radius:4px;">Complete</span>
+                </div>
+                <div style="padding:10px 16px;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center;">
+                  <div><div style="font-size:12px;font-weight:600;color:#374151;">Nashville Industrial Park — Final</div><div style="font-size:11px;color:#9ca3af;margin-top:2px;">Mar 31, 2025 · Manual Entry</div></div>
+                  <span style="font-size:10px;font-weight:600;color:#059669;background:#f0fdf4;padding:2px 7px;border-radius:4px;">Complete</span>
+                </div>
+                <div style="padding:10px 16px;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center;">
+                  <div><div style="font-size:12px;font-weight:600;color:#374151;">Austin Industrial Flex — CO Cert</div><div style="font-size:11px;color:#9ca3af;margin-top:2px;">Mar 14, 2025 · PDF Upload</div></div>
+                  <span style="font-size:10px;font-weight:600;color:#059669;background:#f0fdf4;padding:2px 7px;border-radius:4px;">Complete</span>
+                </div>
+              </div>
+            </div>
+            <div class="tcard">
+              <div class="tcard-hdr"><div class="tcard-title">Database Stats</div></div>
+              <div style="padding:14px 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div style="background:#f9fafb;border-radius:6px;padding:12px;"><div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:4px;">Total Projects</div><div style="font-size:22px;font-weight:700;color:#111827;">10</div></div>
+                <div style="background:#f9fafb;border-radius:6px;padding:12px;"><div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:4px;">Data Points</div><div style="font-size:22px;font-weight:700;color:#111827;">40</div></div>
+                <div style="background:#f9fafb;border-radius:6px;padding:12px;"><div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:4px;">Regions</div><div style="font-size:22px;font-weight:700;color:#111827;">4</div></div>
+                <div style="background:#f9fafb;border-radius:6px;padding:12px;"><div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:4px;">Last Updated</div><div style="font-size:13px;font-weight:700;color:#111827;">Today</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         BID COMPARE  (v3)
+    ══════════════════════════════════════════ -->
+    <div id="dash-bidcompare" class="dashboard">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Bid Compare</div>
+          <div class="dash-sub">Score a GC bid against historical Stoten unit rates by trade. Flags trades where the bid runs above the portfolio's natural ±1σ band.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="settings-gear" onclick="openSettings()" title="AI settings">⚙</button>
+          <div class="demo-badge">Demo · Sample Data</div>
+        </div>
+      </div>
+      <div class="dash-body">
+        <div class="tcard" style="margin-bottom:14px;">
+          <div class="tcard-hdr">
+            <div class="tcard-title">Paste GC bid in $/SF per trade</div>
+            <div class="tcard-sub">Press Tab between rows. Empty rows are ignored. Click "Use sample bid" to autofill a realistic bid.</div>
+          </div>
+          <div style="padding:8px 0;">
+            <table style="width:100%;">
+              <thead>
+                <tr>
+                  <th>Trade</th>
+                  <th style="text-align:right;">Historical avg ($/SF)</th>
+                  <th style="text-align:right;">±1σ band</th>
+                  <th style="text-align:right;">GC bid ($/SF)</th>
+                  <th style="text-align:right;">Variance</th>
+                  <th style="text-align:left;padding-left:14px;">Flag</th>
+                </tr>
+              </thead>
+              <tbody id="bc-tbody"></tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="6" style="padding:14px 18px;background:var(--surface-alt);">
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                      <button class="btn-secondary" onclick="bcLoadSample()">Use sample bid (realistic, 1 high outlier)</button>
+                      <button class="btn-secondary" onclick="bcClear()">Clear</button>
+                      <span id="bc-summary" style="margin-left:auto;font-size:12px;color:var(--text-muted);">Enter at least one bid to see analysis.</span>
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- AI push-back -->
+        <div class="ai-block">
+          <div class="ai-block-hdr">
+            <span>Push-back script</span>
+            <span style="display:flex;gap:6px;align-items:center;">
+              <button class="btn-secondary" style="padding:3px 9px;font-size:11px;" onclick="bcRefreshAi()">↻ Refresh</button>
+              <span class="ai-status">TEMPLATED</span>
+            </span>
+          </div>
+          <div class="ai-block-body" id="bc-pushback" style="white-space:pre-wrap;">Enter a bid above and the talking points will appear here.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         SCENARIO COMPARE  (v3)
+    ══════════════════════════════════════════ -->
+    <div id="dash-scenario" class="dashboard">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Scenario Compare</div>
+          <div class="dash-sub">Side-by-side cost sensitivity. Set two spec variants and see exactly which trades drive the delta. Useful for "36' vs 40' clear" or "cold vs flex" tradeoff conversations.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="settings-gear" onclick="openSettings()" title="AI settings">⚙</button>
+          <div class="demo-badge">Demo · Sample Data</div>
+        </div>
+      </div>
+      <div class="dash-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+          <div class="tcard" style="padding:14px 18px;background:var(--surface-alt);">
+            <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Scenario A</div>
+            <div id="sc-inputs-a"></div>
+          </div>
+          <div class="tcard" style="padding:14px 18px;background:var(--surface-alt);">
+            <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Scenario B</div>
+            <div id="sc-inputs-b"></div>
+          </div>
+        </div>
+
+        <div class="tcard">
+          <div class="tcard-hdr">
+            <div class="tcard-title">Delta by trade <span id="sc-total-delta" style="margin-left:10px;font-weight:600;color:var(--text);"></span></div>
+            <div class="tcard-sub">B − A. Positive numbers mean Scenario B costs more.</div>
+          </div>
+          <table style="width:100%;">
+            <thead>
+              <tr>
+                <th>Trade</th>
+                <th style="text-align:right;">A cost</th>
+                <th style="text-align:right;">B cost</th>
+                <th style="text-align:right;">Δ ($)</th>
+                <th style="text-align:right;">Δ (%)</th>
+              </tr>
+            </thead>
+            <tbody id="sc-tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="ai-block">
+          <div class="ai-block-hdr">
+            <span>What's driving the delta</span>
+            <span style="display:flex;gap:6px;align-items:center;">
+              <button class="btn-secondary" style="padding:3px 9px;font-size:11px;" onclick="scRefreshAi()">↻ Refresh</button>
+              <span class="ai-status">TEMPLATED</span>
+            </span>
+          </div>
+          <div class="ai-block-body" id="sc-commentary">…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         TRADE LIBRARY  (v3 — replaces v2 Data Foundation)
+    ══════════════════════════════════════════ -->
+    <div id="dash-tradelib" class="dashboard">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Trade Library</div>
+          <div class="dash-sub">Per-trade unit rates from the 10 historical Stoten projects. Mean, range, and dispersion — the "evidence" backing the estimator.</div>
+        </div>
+        <div class="demo-badge">Demo · Sample Data</div>
+      </div>
+      <div class="dash-body">
+        <div class="tcard">
+          <div class="tcard-hdr">
+            <div class="tcard-title">10 trade categories · Schedule of Values</div>
+            <div class="tcard-sub">Each row: avg $/SF across all projects, low–high range, std dev, plus a dot-plot showing each project's actual rate.</div>
+          </div>
+          <table style="width:100%;">
+            <thead>
+              <tr>
+                <th>Trade</th>
+                <th style="text-align:right;">Avg $/SF</th>
+                <th style="text-align:right;">Low</th>
+                <th style="text-align:right;">High</th>
+                <th style="text-align:right;">σ</th>
+                <th style="padding-left:14px;">Distribution (10 projects)</th>
+              </tr>
+            </thead>
+            <tbody id="tl-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         METHODOLOGY  (v3 — replaces v2 Data Foundation)
+    ══════════════════════════════════════════ -->
+    <div id="dash-methodology" class="dashboard">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Methodology</div>
+          <div class="dash-sub">How v3 derives unit rates, applies adjustments, and decides confidence.</div>
+        </div>
+        <div class="demo-badge">Demo · Sample Data</div>
+      </div>
+      <div class="dash-body">
+        <div class="tcard" style="padding:22px 26px;line-height:1.7;font-size:14px;color:var(--text);max-width:760px;">
+
+          <h3 style="font-size:13px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Two-layer architecture</h3>
+          <p style="margin-bottom:14px;color:var(--text-muted);">v3 separates <em>math</em> from <em>analysis</em>. Math runs in deterministic JavaScript — every dollar value, percentage, and delta is the result of explicit arithmetic on the historical project data, not an AI guess. AI is layered on top as commentary, push-back scripts, and free-form Q&A — it sees the deterministic numbers as input and writes plain English as output.</p>
+
+          <h3 style="font-size:13px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Unit rate derivation</h3>
+          <p style="margin-bottom:14px;color:var(--text-muted);">For each of the 10 trade categories (the Schedule of Values), we compute the average <strong>$/SF</strong> across all 10 historical Stoten projects: <code style="background:var(--surface-alt);padding:1px 5px;border-radius:3px;font-size:12px;">unit_rate = average(trade_cost / building_sf)</code>. We also compute the standard deviation, low, and high — those drive the ±1σ bands on the Bid Compare panel.</p>
+
+          <h3 style="font-size:13px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Adjustments applied to each estimate</h3>
+          <ul style="margin:0 0 14px 22px;color:var(--text-muted);">
+            <li><strong>Building type</strong> — cold storage adds 100% to mech and 40% to panels; cross-dock adds 45% to dock equip and 18% to site/civil; flex reduces dock equip 45% but lifts MEP for office build-out.</li>
+            <li><strong>Clear height</strong> — $0.45/SF per ft over 28', allocated only to height-sensitive trades (concrete, steel, panels carry most of it; roofing and electrical are flat).</li>
+            <li><strong>Region</strong> — Midwest +6%, Southeast −4%, Southwest −3%, South Central −7% from the national average.</li>
+            <li><strong>Building size</strong> — fixed-cost effect: under 80K SF +6%, 80–150K SF baseline, over 150K SF −3%.</li>
+            <li><strong>FAR</strong> — site/civil scales inversely with FAR. Lower FAR (bigger site per SF of building) → higher site/civil.</li>
+            <li><strong>Dock count</strong> — dock equipment scales with how many doors you specify versus the portfolio average doors-per-100K SF.</li>
+            <li><strong>Fire tank</strong> — fixed $150K adder to plumbing/FP when toggled.</li>
+          </ul>
+
+          <h3 style="font-size:13px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Confidence model</h3>
+          <p style="margin-bottom:14px;color:var(--text-muted);">For each estimate we find <em>comparable projects</em> by scoring matches on building type (4 pts), within-30% size (3 pts), within-4ft clear height (2 pts), and same region (2 pts). Projects scoring 5+ count as comps. Confidence is high with 5 comps, moderate with 3-4, limited with 1-2, and "no close comps — using portfolio average" with 0.</p>
+
+          <h3 style="font-size:13px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">What v3 v0.1 deliberately doesn't do yet</h3>
+          <ul style="margin:0 0 14px 22px;color:var(--text-muted);">
+            <li>Save / name / share specific estimates (URL-state coming next)</li>
+            <li>Per-trade manual overrides (e.g. "force mech to $1.85/SF")</li>
+            <li>Auto-suggest from a project name ("estimate for Cat Drive")</li>
+            <li>Real Stoten data ingest — still using 10 illustrative projects</li>
+            <li>Adjustment-factor tuning UI — those constants are educated guesses for v0.1, will be recalibrated when Jack pulls real closeouts</li>
+            <li>PDF export of an estimate</li>
+          </ul>
+
+          <h3 style="font-size:13px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">AI plumbing</h3>
+          <p style="margin-bottom:0;color:var(--text-muted);">Out of the box, every AI feature uses a <strong>templated fallback</strong> — rule-based commentary that varies with inputs but isn't generative. Click the gear icon (top-right of any estimator panel) and paste an Anthropic API key to switch to <strong>live AI</strong> via <code style="background:var(--surface-alt);padding:1px 5px;border-radius:3px;font-size:12px;">claude-sonnet-4-6</code>. Your key stays in your browser's localStorage and is only sent to Anthropic when you trigger an AI feature. In production this moves to a Supabase Edge Function with the key server-side.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         DATA FOUNDATION (legacy v2 — hidden from v3 sidebar)
+    ══════════════════════════════════════════ -->
+    <div id="dash-foundation" class="dashboard">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Data Foundation</div>
+          <div class="dash-sub">Data schema, field definitions, and collection methodology</div>
+        </div>
+        <div class="demo-badge">Demo · Sample Data</div>
+      </div>
+      <div class="dash-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+          <div class="tcard">
+            <div class="tcard-hdr"><div class="tcard-title">Project-Level Fields</div><div class="tcard-sub">Collected per project at closeout</div></div>
+            <table>
+              <thead><tr><th>Field</th><th>Type</th><th>Required</th></tr></thead>
+              <tbody>
+                <tr><td style="font-size:12px;font-weight:500;">Project Name</td><td style="font-size:11px;color:#6b7280;">Text</td><td style="font-size:11px;color:#059669;">Yes</td></tr>
+                <tr><td style="font-size:12px;font-weight:500;">Project Type</td><td style="font-size:11px;color:#6b7280;">Enum: Industrial / Flex / Cold / Mixed</td><td style="font-size:11px;color:#059669;">Yes</td></tr>
+                <tr><td style="font-size:12px;font-weight:500;">Market</td><td style="font-size:11px;color:#6b7280;">City, State</td><td style="font-size:11px;color:#059669;">Yes</td></tr>
+                <tr><td style="font-size:12px;font-weight:500;">Region</td><td style="font-size:11px;color:#6b7280;">Enum: SW / SC / SE / Midwest</td><td style="font-size:11px;color:#059669;">Yes</td></tr>
+                <tr><td style="font-size:12px;font-weight:500;">GC</td><td style="font-size:11px;color:#6b7280;">Text</td><td style="font-size:11px;color:#059669;">Yes</td></tr>
+                <tr><td style="font-size:12px;font-weight:500;">Building SF</td><td style="font-size:11px;color:#6b7280;">Integer</td><td style="font-size:11px;color:#059669;">Yes</td></tr>
+                <tr><td style="font-size:12px;font-weight:500;">Clear Height (ft)</td><td style="font-size:11px;color:#6b7280;">Integer</td><td style="font-size:11px;color:#059669;">Yes</td></tr>
+                <tr><td style="font-size:12px;font-weight:500;">Dock Doors</td><td style="font-size:11px;color:#6b7280;">Integer</td><td style="font-size:11px;color:#059669;">Yes</td></tr>
+                <tr><td style="font-size:12px;font-weight:500;">Site Acres</td><td style="font-size:11px;color:#6b7280;">Decimal</td><td style="font-size:11px;color:#059669;">Yes</td></tr>
+                <tr><td style="font-size:12px;font-weight:500;">Budget ($)</td><td style="font-size:11px;color:#6b7280;">Currency</td><td style="font-size:11px;color:#059669;">Yes</td></tr>
+                <tr><td style="font-size:12px;font-weight:500;">Actual Cost ($)</td><td style="font-size:11px;color:#6b7280;">Currency</td><td style="font-size:11px;color:#059669;">Yes</td></tr>
+                <tr><td style="font-size:12px;font-weight:500;">Year Delivered</td><td style="font-size:11px;color:#6b7280;">YYYY</td><td style="font-size:11px;color:#059669;">Yes</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="tcard">
+            <div class="tcard-hdr"><div class="tcard-title">Cost Category Fields</div><div class="tcard-sub">10 categories tracked per project</div></div>
+            <table>
+              <thead><tr><th>Category</th><th>Scope Included</th></tr></thead>
+              <tbody>
+                <tr><td style="font-size:12px;font-weight:600;">Concrete / Foundations</td><td style="font-size:11px;color:#6b7280;">Slab, grade beams, tilt columns, foundations</td></tr>
+                <tr><td style="font-size:12px;font-weight:600;">Structural Steel</td><td style="font-size:11px;color:#6b7280;">Joists, deck, columns</td></tr>
+                <tr><td style="font-size:12px;font-weight:600;">Tilt-Up Panels / Skin</td><td style="font-size:11px;color:#6b7280;">Wall panels, erection, caulking, paint, louvers</td></tr>
+                <tr><td style="font-size:12px;font-weight:600;">Roofing</td><td style="font-size:11px;color:#6b7280;">Single-ply membrane, insulation, drainage</td></tr>
+                <tr><td style="font-size:12px;font-weight:600;">Mechanical</td><td style="font-size:11px;color:#6b7280;">HVAC, RTUs, dock ventilation, HVLS fans</td></tr>
+                <tr><td style="font-size:12px;font-weight:600;">Electrical</td><td style="font-size:11px;color:#6b7280;">Power distribution, lighting, fire alarm, low voltage</td></tr>
+                <tr><td style="font-size:12px;font-weight:600;">Plumbing / Fire Protection</td><td style="font-size:11px;color:#6b7280;">Restrooms, FP rough-in, sprinkler system</td></tr>
+                <tr><td style="font-size:12px;font-weight:600;">Dock Equipment</td><td style="font-size:11px;color:#6b7280;">Dock doors, levelers, seals, restraints</td></tr>
+                <tr><td style="font-size:12px;font-weight:600;">Site Work / Civil</td><td style="font-size:11px;color:#6b7280;">Paving, grading, utilities, storm drainage, fencing, landscaping</td></tr>
+                <tr><td style="font-size:12px;font-weight:600;">General Conditions / Fee</td><td style="font-size:11px;color:#6b7280;">Supervision, temp facilities, insurance, bonds, GC profit</td></tr>
+              </tbody>
+            </table>
+            <div style="padding:14px 16px;background:#f8fafc;border-top:1px solid #e5e7eb;">
+              <div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:6px;">Normalization Standards</div>
+              <div style="font-size:11px;color:#64748b;line-height:1.7;">
+                · All costs are all-in (GC fee, GCs, insurance, bonds)<br>
+                · Clear height baseline: <strong>28 ft</strong> · Premium: <strong>$0.45/SF per additional ft</strong><br>
+                · Site premium baseline: gross improved acres including truck court<br>
+                · No owner soft costs (design, permitting, financing) in database
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tcard">
+          <div class="tcard-hdr"><div class="tcard-title">Data Collection Sources</div></div>
+          <div style="padding:16px 20px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+            <div style="background:#f9fafb;border-radius:8px;padding:14px;">
+              <div style="font-size:18px;margin-bottom:8px;">&#128196;</div>
+              <div style="font-size:12px;font-weight:700;color:#111827;margin-bottom:4px;">GC Closeout Package</div>
+              <div style="font-size:11px;color:#6b7280;line-height:1.6;">Preferred source. Cost breakdown by CSI division submitted at final CO.</div>
+            </div>
+            <div style="background:#f9fafb;border-radius:8px;padding:14px;">
+              <div style="font-size:18px;margin-bottom:8px;">&#128176;</div>
+              <div style="font-size:12px;font-weight:700;color:#111827;margin-bottom:4px;">AIA G702 / G703</div>
+              <div style="font-size:11px;color:#6b7280;line-height:1.6;">Pay application with schedule of values — used when closeout package unavailable.</div>
+            </div>
+            <div style="background:#f9fafb;border-radius:8px;padding:14px;">
+              <div style="font-size:18px;margin-bottom:8px;">&#9999;&#65039;</div>
+              <div style="font-size:12px;font-weight:700;color:#111827;margin-bottom:4px;">Manual Entry</div>
+              <div style="font-size:11px;color:#6b7280;line-height:1.6;">CM-entered data from construction budget tracking spreadsheets or owner estimates.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         AI QUERY  (v3 — live, BYOK)
+    ══════════════════════════════════════════ -->
+    <div id="dash-aiquery" class="dashboard">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">AI Query</div>
+          <div class="dash-sub">Free-form questions about the 10-project cost dataset. Answers come from the templated handler by default; configure your Anthropic API key (gear icon) for live Claude responses.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="settings-gear" onclick="openSettings()" title="AI settings">⚙</button>
+          <span class="ai-status">TEMPLATED</span>
+          <div class="demo-badge">Demo · Sample Data</div>
+        </div>
+      </div>
+      <div class="dash-body">
+        <div class="tcard" style="margin-bottom:14px;">
+          <div style="padding:18px 20px 14px;">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:500;">Ask a question about your project cost data</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <textarea id="aiq-input" rows="3" style="flex:1;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;color:var(--text);background:var(--surface);" placeholder="e.g. How does Phoenix's mech cost compare to Dallas? Which GCs delivered under budget? What's the median $/SF for industrial in the Southeast?"></textarea>
+              <button class="btn-primary" onclick="aiqRun()" style="white-space:nowrap;">Run query</button>
+            </div>
+          </div>
+          <div style="padding:10px 20px 14px;border-top:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Try one:</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="preset-chip" onclick="aiqPrefill('Which project has the highest cost per SF, and why is it that high?')">Highest $/SF + why</button>
+              <button class="preset-chip" onclick="aiqPrefill('Compare Midwest vs Southeast on average $/SF and identify which trades drive the difference')">Midwest vs Southeast trade-by-trade</button>
+              <button class="preset-chip" onclick="aiqPrefill('Which GCs came in under budget and what did they have in common?')">Under-budget GC patterns</button>
+              <button class="preset-chip" onclick="aiqPrefill('What is the median cost per dock door for cross-dock industrial projects?')">Median $/dock door — cross-dock</button>
+              <button class="preset-chip" onclick="aiqPrefill('Find any project where one trade looks suspiciously cheap or expensive vs the rest of the portfolio')">Outlier trade values</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="aiq-result-wrap" style="display:none;">
+          <div class="ai-block">
+            <div class="ai-block-hdr">
+              <span>Answer</span>
+              <span class="ai-status">TEMPLATED</span>
+            </div>
+            <div class="ai-block-body" id="aiq-result"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         QUICK ESTIMATE  (v3 hero)
+    ══════════════════════════════════════════ -->
+    <div id="dash-estimate" class="dashboard active">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Quick Estimate</div>
+          <div class="dash-sub">10 historical Stoten projects scored on 8 cost-driving factors. Adjust the inputs — the estimate re-computes live.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="settings-gear" onclick="openSettings()" title="AI settings">⚙</button>
+          <div class="demo-badge">Demo · Sample Data</div>
+        </div>
+      </div>
+      <div class="dash-body">
+        <div class="preset-row" id="qe-presets">
+          <div style="font-size:11px;font-weight:600;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;align-self:center;margin-right:4px;">Presets:</div>
+          <button class="preset-chip" data-preset="rear-load">Rear-load 130K · Midwest</button>
+          <button class="preset-chip" data-preset="cross-dock">Cross-dock 200K · South Central</button>
+          <button class="preset-chip" data-preset="cold-storage">Cold storage 60K · Southwest</button>
+          <button class="preset-chip" data-preset="flex">Flex 75K · Southeast</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:380px 1fr;gap:18px;">
+
+          <!-- LEFT: Inputs -->
+          <div class="tcard" style="padding:18px 20px;background:var(--surface-alt);">
+            <div style="font-size:11px;font-weight:600;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:14px;">Express your project</div>
+
+            <div style="margin-bottom:14px;">
+              <div style="font-size:11px;font-weight:500;color:var(--text-muted);margin-bottom:6px;">Building type</div>
+              <div class="seg-row" id="qe-type">
+                <button class="seg-btn active" data-val="Industrial">Rear-load</button>
+                <button class="seg-btn" data-val="Cross Dock">Cross-dock</button>
+                <button class="seg-btn" data-val="Flex">Flex</button>
+                <button class="seg-btn" data-val="Cold Storage">Cold</button>
+              </div>
+            </div>
+
+            <div style="margin-bottom:14px;">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+                <span style="font-size:11px;font-weight:500;color:var(--text-muted);">Building size</span>
+                <span style="font-size:13px;font-weight:600;color:var(--text);" id="qe-sf-val">120,000 SF</span>
+              </div>
+              <input type="range" class="slider" id="qe-sf" min="50000" max="250000" step="5000" value="120000">
+            </div>
+
+            <div style="margin-bottom:14px;">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+                <span style="font-size:11px;font-weight:500;color:var(--text-muted);">Clear height</span>
+                <span style="font-size:13px;font-weight:600;color:var(--text);" id="qe-ht-val">32 ft</span>
+              </div>
+              <input type="range" class="slider" id="qe-ht" min="24" max="44" step="1" value="32">
+            </div>
+
+            <div style="margin-bottom:14px;">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+                <span style="font-size:11px;font-weight:500;color:var(--text-muted);">FAR <span class="help-target" title="Floor Area Ratio: building SF / site SF. Lower = bigger site relative to building.">ⓘ</span></span>
+                <span style="font-size:13px;font-weight:600;color:var(--text);" id="qe-far-val">0.40</span>
+              </div>
+              <input type="range" class="slider" id="qe-far" min="0.25" max="0.55" step="0.01" value="0.40">
+              <div style="font-size:11px;color:var(--text-faint);margin-top:4px;" id="qe-acres-derived">≈ 6.9 site acres</div>
+            </div>
+
+            <div style="margin-bottom:14px;">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+                <span style="font-size:11px;font-weight:500;color:var(--text-muted);">Dock doors</span>
+                <span style="font-size:13px;font-weight:600;color:var(--text);" id="qe-doors-val">20</span>
+              </div>
+              <input type="range" class="slider" id="qe-doors" min="4" max="60" step="1" value="20">
+            </div>
+
+            <div style="margin-bottom:14px;">
+              <div style="font-size:11px;font-weight:500;color:var(--text-muted);margin-bottom:6px;">Region</div>
+              <div class="seg-row" id="qe-region">
+                <button class="seg-btn" data-val="Southwest">SW</button>
+                <button class="seg-btn" data-val="South Central">SC</button>
+                <button class="seg-btn" data-val="Southeast">SE</button>
+                <button class="seg-btn active" data-val="Midwest">Midwest</button>
+              </div>
+            </div>
+
+            <div style="margin-bottom:14px;">
+              <div style="font-size:11px;font-weight:500;color:var(--text-muted);margin-bottom:6px;">Market</div>
+              <select id="qe-market" style="width:100%;padding:7px 10px;font-family:inherit;font-size:13px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);color:var(--text);"></select>
+            </div>
+
+            <div class="toggle-row" style="margin-bottom:4px;">
+              <div class="toggle" id="qe-firetank-toggle"></div>
+              <span style="font-size:13px;color:var(--text);">Fire tank</span>
+              <span class="help-target" title="Adds a fixed plumbing/FP cost (~$150K) for a stand-alone fire tank installation." style="font-size:11px;color:var(--text-faint);">ⓘ</span>
+            </div>
+          </div>
+
+          <!-- RIGHT: Output -->
+          <div>
+            <!-- Total + range -->
+            <div class="tcard" style="padding:20px 22px;margin-bottom:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+                <div style="font-size:11px;font-weight:600;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;">Estimated all-in cost</div>
+                <div id="qe-confidence" style="font-size:11px;padding:2px 8px;border-radius:4px;"></div>
+              </div>
+              <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+                <div style="font-size:34px;font-weight:600;color:var(--text);" id="qe-total">—</div>
+                <div style="font-size:12px;color:var(--text-muted);">
+                  <span id="qe-range">—</span> · <span id="qe-psf">—</span>/SF · <span id="qe-pdoor">—</span>/door
+                </div>
+              </div>
+            </div>
+
+            <!-- Trade breakdown -->
+            <div class="tcard">
+              <div class="tcard-hdr">
+                <div class="tcard-title">Cost breakdown by trade</div>
+                <div class="tcard-sub" id="qe-breakdown-sub">Derived from historical Stoten projects</div>
+              </div>
+              <table style="width:100%;">
+                <thead>
+                  <tr>
+                    <th>Trade</th>
+                    <th style="text-align:right;">$/SF</th>
+                    <th style="text-align:right;">Cost</th>
+                    <th style="text-align:right;">% of total</th>
+                  </tr>
+                </thead>
+                <tbody id="qe-breakdown-tbody"></tbody>
+              </table>
+            </div>
+
+            <!-- AI commentary -->
+            <div class="ai-block">
+              <div class="ai-block-hdr">
+                <span>Why this estimate</span>
+                <span style="display:flex;gap:6px;align-items:center;">
+                  <button class="btn-secondary" style="padding:3px 9px;font-size:11px;" onclick="refreshEstimateCommentary()">↻ Refresh</button>
+                  <span class="ai-status">TEMPLATED</span>
+                </span>
+              </div>
+              <div class="ai-block-body" id="qe-commentary">…</div>
+            </div>
+
+            <!-- Underwriting paragraph -->
+            <div class="ai-block" style="margin-top:10px;">
+              <div class="ai-block-hdr">
+                <span>Underwriting drop-in</span>
+                <span style="display:flex;gap:6px;align-items:center;">
+                  <button class="btn-secondary" style="padding:3px 9px;font-size:11px;" onclick="refreshUnderwriting()">↻ Refresh</button>
+                  <span class="ai-status">TEMPLATED</span>
+                </span>
+              </div>
+              <div class="ai-block-body" id="qe-underwriting" style="font-size:12.5px;line-height:1.7;color:var(--text-muted);font-style:italic;">…</div>
+            </div>
+
+            <!-- Comparable projects -->
+            <div class="tcard" style="margin-top:12px;">
+              <div class="tcard-hdr">
+                <div class="tcard-title">Comparable Stoten projects</div>
+                <div class="tcard-sub" id="qe-comps-sub">—</div>
+              </div>
+              <div id="qe-comps-list" style="padding:6px 0;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ─── SETTINGS MODAL (AI key) ─────────────────────── -->
+<div class="settings-overlay" id="settings-overlay" onclick="if(event.target===this)closeSettings()">
+  <div class="settings-modal">
+    <div class="settings-title">AI analysis settings</div>
+    <div class="settings-sub">v3 ships with templated commentary that works for everyone. To switch to live AI (powered by claude-sonnet-4-6), paste your Anthropic API key below. Your key is stored only in this browser's localStorage and is never sent anywhere except to Anthropic when you trigger an AI feature.</div>
+    <input type="password" id="settings-key-input" class="settings-input" placeholder="sk-ant-..." autocomplete="off">
+    <div class="settings-actions">
+      <button class="btn-secondary" onclick="closeSettings()">Cancel</button>
+      <button class="btn-primary" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Disable browser scroll restoration so revisiting the URL doesn't restore a stale position
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+// Ensure page starts at top on every load
+window.scrollTo(0, 0);
+
+// ─────────────────────────────────────────────────────
+// PROJECT DATA
+// ─────────────────────────────────────────────────────
+const PROJECTS = [
+  {
+    id: 1, name: "Phoenix Distribution Ctr", type: "Industrial", region: "Southwest",
+    market: "Phoenix, AZ", gc: "Hensel Phelps", sf: 148000, clear_ht: 32,
+    dock_doors: 24, site_acres: 12.4, budget: 18200000, actual: 19100000, year: 2023,
+    cost_cats: { foundations: 4.24, steel: 2.27, panels: 3.09, roofing: 1.36, mechanical: 1.57, electrical: 1.91, plumbing_fp: 0.76, dock_equip: 0.59, site_civil: 2.31, gc_fee: 1.00 }
+  },
+  {
+    id: 2, name: "Austin Industrial Flex", type: "Flex", region: "South Central",
+    market: "Austin, TX", gc: "Swinerton Builders", sf: 85000, clear_ht: 28,
+    dock_doors: 12, site_acres: 7.2, budget: 11400000, actual: 10900000, year: 2024,
+    cost_cats: { foundations: 2.38, steel: 1.33, panels: 1.72, roofing: 0.78, mechanical: 0.88, electrical: 1.11, plumbing_fp: 0.43, dock_equip: 0.33, site_civil: 1.34, gc_fee: 0.60 }
+  },
+  {
+    id: 3, name: "Denver Cold Storage", type: "Cold Storage", region: "Southwest",
+    market: "Denver, CO", gc: "JE Dunn Construction", sf: 64000, clear_ht: 40,
+    dock_doors: 8, site_acres: 5.1, budget: 14200000, actual: 15800000, year: 2023,
+    cost_cats: { foundations: 3.48, steel: 1.90, panels: 2.45, roofing: 1.07, mechanical: 2.21, electrical: 1.50, plumbing_fp: 0.60, dock_equip: 0.28, site_civil: 1.74, gc_fee: 0.57 }
+  },
+  {
+    id: 4, name: "Dallas Last Mile", type: "Industrial", region: "South Central",
+    market: "Dallas, TX", gc: "Austin Industries", sf: 122000, clear_ht: 30,
+    dock_doors: 20, site_acres: 9.8, budget: 14100000, actual: 13700000, year: 2024,
+    cost_cats: { foundations: 3.03, steel: 1.66, panels: 2.21, roofing: 0.95, mechanical: 1.10, electrical: 1.38, plumbing_fp: 0.55, dock_equip: 0.42, site_civil: 1.67, gc_fee: 0.73 }
+  },
+  {
+    id: 5, name: "Nashville Industrial Park", type: "Industrial", region: "Southeast",
+    market: "Nashville, TN", gc: "Skanska USA", sf: 96000, clear_ht: 32,
+    dock_doors: 16, site_acres: 8.3, budget: 12800000, actual: 13300000, year: 2025,
+    cost_cats: { foundations: 2.93, steel: 1.57, panels: 2.17, roofing: 0.93, mechanical: 1.08, electrical: 1.32, plumbing_fp: 0.55, dock_equip: 0.41, site_civil: 1.62, gc_fee: 0.72 }
+  },
+  {
+    id: 6, name: "Atlanta Flex Center", type: "Flex", region: "Southeast",
+    market: "Atlanta, GA", gc: "DPR Construction", sf: 71000, clear_ht: 24,
+    dock_doors: 10, site_acres: 5.8, budget: 9200000, actual: 9600000, year: 2024,
+    cost_cats: { foundations: 2.10, steel: 1.16, panels: 1.52, roofing: 0.70, mechanical: 0.80, electrical: 0.97, plumbing_fp: 0.37, dock_equip: 0.27, site_civil: 1.18, gc_fee: 0.53 }
+  },
+  {
+    id: 7, name: "Charlotte Mixed-Use", type: "Mixed-Use", region: "Southeast",
+    market: "Charlotte, NC", gc: "Balfour Beatty", sf: 52000, clear_ht: 24,
+    dock_doors: 6, site_acres: 4.2, budget: 10400000, actual: 11100000, year: 2022,
+    cost_cats: { foundations: 2.42, steel: 1.30, panels: 1.78, roofing: 0.79, mechanical: 0.91, electrical: 1.44, plumbing_fp: 0.46, dock_equip: 0.11, site_civil: 1.34, gc_fee: 0.55 }
+  },
+  {
+    id: 8, name: "San Antonio Warehouse", type: "Industrial", region: "South Central",
+    market: "San Antonio, TX", gc: "Kiewit Building Group", sf: 110000, clear_ht: 30,
+    dock_doors: 18, site_acres: 9.0, budget: 13100000, actual: 12800000, year: 2021,
+    cost_cats: { foundations: 2.84, steel: 1.54, panels: 2.07, roofing: 0.90, mechanical: 1.01, electrical: 1.28, plumbing_fp: 0.51, dock_equip: 0.41, site_civil: 1.55, gc_fee: 0.69 }
+  },
+  {
+    id: 9, name: "Katherines Crossing", type: "Industrial", region: "Midwest",
+    market: "Chicago, IL", gc: "Power Construction", sf: 135000, clear_ht: 32,
+    dock_doors: 22, site_acres: 11.2, budget: 16400000, actual: 17200000, year: 2024,
+    cost_cats: { foundations: 3.80, steel: 2.08, panels: 2.79, roofing: 1.20, mechanical: 1.41, electrical: 1.74, plumbing_fp: 0.69, dock_equip: 0.52, site_civil: 2.10, gc_fee: 0.87 }
+  },
+  {
+    id: 10, name: "Wolf Rd Distribution", type: "Industrial", region: "Midwest",
+    market: "Chicago, IL", gc: "Pepper Construction", sf: 118000, clear_ht: 32,
+    dock_doors: 19, site_acres: 9.8, budget: 15100000, actual: 15800000, year: 2023,
+    cost_cats: { foundations: 3.48, steel: 1.90, panels: 2.54, roofing: 1.12, mechanical: 1.28, electrical: 1.58, plumbing_fp: 0.63, dock_equip: 0.49, site_civil: 1.93, gc_fee: 0.85 }
+  }
+];
+
+// Trade pricing data: 9 quarters Q1 2023 – Q1 2025
+const QUARTERS = ['Q1 23','Q2 23','Q3 23','Q4 23','Q1 24','Q2 24','Q3 24','Q4 24','Q1 25'];
+
+const TRADE_BASE = {
+  dock:  [4800, 5100, 5350, 5200, 5400, 5650, 5800, 6050, 6200],
+  tilt:  [42.0, 43.5, 44.0, 43.0, 44.5, 46.0, 47.5, 49.0, 50.5],
+  steel: [2800, 2950, 3100, 2900, 3050, 3200, 3350, 3500, 3650],
+  site:  [8.50, 8.80, 9.10, 8.90, 9.30, 9.60, 9.90, 10.20, 10.50]
+};
+
+// Regional multipliers (vs base)
+const REGION_MULT = {
+  'Southwest':    { dock: 0.97, tilt: 0.95, steel: 0.98, site: 0.96 },
+  'South Central':{ dock: 0.93, tilt: 0.93, steel: 0.94, site: 0.91 },
+  'Southeast':    { dock: 0.95, tilt: 0.96, steel: 0.96, site: 0.94 },
+  'Midwest':      { dock: 1.07, tilt: 1.06, steel: 1.05, site: 1.08 }
+};
+
+// ─────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────
+const fmt$ = (v, dec=0) => '$' + v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+const fmtM = v => '$' + (v/1e6).toFixed(1) + 'M';
+const fmtK = v => (v/1000).toFixed(0) + 'K';
+const fmtPct = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+const fmtSF2 = v => '$' + v.toFixed(2);
+
+function variance(p) { return (p.actual - p.budget) / p.budget * 100; }
+
+function typeBadge(t) {
+  const map = { 'Industrial':'b-ind','Flex':'b-flex','Cold Storage':'b-cold','Mixed-Use':'b-mix' };
+  return `<span class="badge ${map[t]||'b-ind'}">${t}</span>`;
+}
+
+function varClass(v) { return v > 0 ? 'var-over' : 'var-under'; }
+
+function clearHtAdjCostSF(p) {
+  const baseSF = p.actual / p.sf;
+  const htPremium = Math.max(0, p.clear_ht - 28) * 0.45;
+  return baseSF - htPremium;
+}
+
+function normTo100k(p) {
+  return (p.actual / p.sf) * 100000;
+}
+
+// ─────────────────────────────────────────────────────
+// V3 — DETERMINISTIC ESTIMATOR ENGINE
+// All math lives here. NO LLM is allowed to compute these numbers.
+// AI is layered on top of estimateProject() output as commentary only.
+// ─────────────────────────────────────────────────────
+
+// 10 trade categories (matches v2's cost_cats keys)
+const TRADES = [
+  { key: 'foundations', label: 'Concrete / Foundations',  htSensitive: 0.55 },
+  { key: 'steel',       label: 'Structural Steel',         htSensitive: 0.85 },
+  { key: 'panels',      label: 'Tilt-Up Panels / Skin',    htSensitive: 0.95 },
+  { key: 'roofing',     label: 'Roofing',                  htSensitive: 0.05 },
+  { key: 'mechanical',  label: 'Mechanical (HVAC)',        htSensitive: 0.10 },
+  { key: 'electrical',  label: 'Electrical',               htSensitive: 0.05 },
+  { key: 'plumbing_fp', label: 'Plumbing / Fire Protection',htSensitive: 0.10 },
+  { key: 'dock_equip',  label: 'Dock Equipment',           htSensitive: 0.00 },
+  { key: 'site_civil',  label: 'Site Work / Civil',        htSensitive: 0.00 },
+  { key: 'gc_fee',      label: 'General Conditions / Fee', htSensitive: 0.10 },
+];
+
+// Building-type multipliers per trade (1.0 = baseline = 'Industrial' rear-load)
+const TYPE_FACTORS = {
+  'Industrial':   { foundations: 1.00, steel: 1.00, panels: 1.00, roofing: 1.00, mechanical: 1.00, electrical: 1.00, plumbing_fp: 1.00, dock_equip: 1.00, site_civil: 1.00, gc_fee: 1.00 },
+  'Cross Dock':   { foundations: 1.00, steel: 1.02, panels: 1.00, roofing: 1.00, mechanical: 1.05, electrical: 1.05, plumbing_fp: 1.00, dock_equip: 1.45, site_civil: 1.18, gc_fee: 1.04 },
+  'Flex':         { foundations: 0.95, steel: 0.98, panels: 1.00, roofing: 1.00, mechanical: 1.10, electrical: 1.20, plumbing_fp: 1.10, dock_equip: 0.55, site_civil: 0.85, gc_fee: 1.00 },
+  'Cold Storage': { foundations: 1.30, steel: 1.05, panels: 1.40, roofing: 1.10, mechanical: 2.00, electrical: 1.20, plumbing_fp: 1.05, dock_equip: 1.20, site_civil: 1.00, gc_fee: 1.08 },
+};
+
+// Regional multipliers — overall (applied to all trades)
+const TYPE_REGION_MULT = {
+  'Southwest':     0.97,
+  'South Central': 0.93,
+  'Southeast':     0.96,
+  'Midwest':       1.06,
+};
+
+// Markets per region (for the dropdown filter)
+const REGION_MARKETS = {
+  'Southwest':     ['Phoenix, AZ', 'Denver, CO', 'Las Vegas, NV', 'Salt Lake City, UT'],
+  'South Central': ['Dallas, TX', 'Austin, TX', 'San Antonio, TX', 'Houston, TX'],
+  'Southeast':     ['Atlanta, GA', 'Charlotte, NC', 'Nashville, TN', 'Jacksonville, FL'],
+  'Midwest':       ['Chicago, IL', 'Indianapolis, IN', 'Columbus, OH', 'Kansas City, MO'],
+};
+
+// Compute baseline unit rate ($/SF) for a trade across all PROJECTS, weighted equally
+function tradeUnitRate(tradeKey) {
+  const rates = PROJECTS.map(p => (p.cost_cats[tradeKey] * 1e6) / p.sf);
+  const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
+  const sorted = [...rates].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const stdDev = Math.sqrt(rates.reduce((s, r) => s + (r - avg) ** 2, 0) / rates.length);
+  return { avg, median, stdDev, min: sorted[0], max: sorted[sorted.length - 1], rates };
+}
+
+// Cache per-trade rates
+const TRADE_RATES = {};
+TRADES.forEach(t => { TRADE_RATES[t.key] = tradeUnitRate(t.key); });
+
+// Find comparable projects given inputs
+function findComps(inputs) {
+  const sizeTol = 0.30;  // ±30%
+  const htTol = 4;        // ±4 ft
+  return PROJECTS.map(p => {
+    const sizeDist = Math.abs(p.sf - inputs.sf) / inputs.sf;
+    const htDist = Math.abs(p.clear_ht - inputs.clear_ht);
+    const sameType = p.type === inputs.type;
+    const sameRegion = p.region === inputs.region;
+    let score = 0;
+    if (sameType) score += 4;
+    if (sizeDist <= sizeTol) score += 3;
+    if (htDist <= htTol) score += 2;
+    if (sameRegion) score += 2;
+    return { project: p, score, sizeDist, htDist, sameType, sameRegion };
+  })
+    .filter(c => c.score >= 5)         // require at least 5 points (e.g. type + size)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+}
+
+// Confidence label based on comp count
+function confidenceLabel(compCount) {
+  if (compCount >= 5) return { level: 'High', cls: 'success', text: 'High confidence — 5+ close comps' };
+  if (compCount >= 3) return { level: 'Moderate', cls: 'accent', text: `Moderate confidence — ${compCount} comps` };
+  if (compCount >= 1) return { level: 'Limited', cls: 'warn', text: `Limited comps — wide range (${compCount})` };
+  return { level: 'None', cls: 'danger', text: 'No close comps — using portfolio average' };
+}
+
+// THE ESTIMATOR
+function estimateProject(inputs) {
+  // inputs: { type, sf, clear_ht, far, dock_doors, fire_tank, region, market }
+  const typeFactors = TYPE_FACTORS[inputs.type] || TYPE_FACTORS['Industrial'];
+  const regionFactor = TYPE_REGION_MULT[inputs.region] || 1;
+
+  // Size scaling: smaller projects have higher unit rates (fixed costs)
+  let sizeFactor;
+  if (inputs.sf < 80000)        sizeFactor = 1.06;
+  else if (inputs.sf < 150000)  sizeFactor = 1.00;
+  else                          sizeFactor = 0.97;
+
+  // Clear height premium baseline: $0.45/SF per ft over 28', allocated to height-sensitive trades
+  const ht_premium_total = Math.max(0, inputs.clear_ht - 28) * 0.45;
+
+  // Dock count vs portfolio average doors-per-100K-SF
+  const portfolioDocksPer100K = PROJECTS.reduce((s, p) => s + (p.dock_doors / p.sf * 100000), 0) / PROJECTS.length;
+  const expectedDocks = portfolioDocksPer100K * (inputs.sf / 100000);
+  const dockFactor = inputs.dock_doors / Math.max(expectedDocks, 1);  // 1.0 = expected
+
+  // FAR effect on site/civil: site SF = building / FAR, so site cost scales as building / building_FAR / building_SF = 1/FAR
+  // Normalize relative to portfolio average FAR (~0.40 estimate)
+  const portfolioFAR = 0.40;
+  const farFactor = portfolioFAR / Math.max(inputs.far, 0.20);  // lower FAR → bigger site → higher factor
+
+  // Fire tank fixed adder
+  const fireTankAdder = inputs.fire_tank ? 150000 : 0;  // $150K to plumbing_fp
+
+  const byTrade = TRADES.map(t => {
+    const baseRate = TRADE_RATES[t.key].avg;  // $/SF
+    const typeMult = typeFactors[t.key];
+    const heightAdd = ht_premium_total * t.htSensitive;
+    const dockMult = (t.key === 'dock_equip') ? dockFactor : 1;
+    const farMult = (t.key === 'site_civil') ? farFactor : 1;
+    const adjustedRate = (baseRate + heightAdd) * typeMult * regionFactor * sizeFactor * dockMult * farMult;
+    const cost = adjustedRate * inputs.sf + (t.key === 'plumbing_fp' ? fireTankAdder : 0);
+    return {
+      key: t.key, label: t.label,
+      baseRate, adjustedRate, cost,
+      pct: 0,  // filled after total computed
+    };
+  });
+
+  const total = byTrade.reduce((s, t) => s + t.cost, 0);
+  byTrade.forEach(t => { t.pct = t.cost / total * 100; });
+
+  const range_low = total * 0.92;
+  const range_high = total * 1.10;
+  const cost_per_sf = total / inputs.sf;
+  const cost_per_door = inputs.dock_doors > 0 ? total / inputs.dock_doors : null;
+
+  const comps = findComps(inputs);
+  const confidence = confidenceLabel(comps.length);
+
+  return {
+    inputs,
+    total, range_low, range_high,
+    cost_per_sf, cost_per_door,
+    byTrade, comps, confidence,
+    factors: { typeMult: typeFactors, regionFactor, sizeFactor, dockFactor, farFactor, ht_premium_total, fireTankAdder },
+  };
+}
+
+// Bid variance helper for Bid Compare panel
+function bidVariance(bidsBySFPerCat) {
+  // bidsBySFPerCat: { foundations: 4.20, steel: 9.50, ... }
+  return TRADES.map(t => {
+    const r = TRADE_RATES[t.key];
+    const bid = bidsBySFPerCat[t.key];
+    if (bid == null || isNaN(bid)) return { key: t.key, label: t.label, avg: r.avg, stdDev: r.stdDev, bid: null, variance: null, status: 'none' };
+    const variancePct = (bid - r.avg) / r.avg * 100;
+    let status = 'reasonable';
+    if (bid > r.avg + r.stdDev) status = 'high';
+    else if (bid < r.avg - r.stdDev) status = 'low';
+    return { key: t.key, label: t.label, avg: r.avg, stdDev: r.stdDev, bid, variance: variancePct, status };
+  });
+}
+
+// ─────────────────────────────────────────────────────
+// V3 — AI ANALYSIS LAYER (BYOK + templated fallback)
+// AI receives the deterministic numbers as INPUT and produces narrative
+// as OUTPUT. AI never computes the math itself.
+// ─────────────────────────────────────────────────────
+
+const AI_KEY_STORAGE = 'stoten-cost-intel-anthropic-key';
+const AI_MODEL = 'claude-sonnet-4-6';
+
+function getApiKey() {
+  try { return localStorage.getItem(AI_KEY_STORAGE) || ''; }
+  catch (e) { return ''; }
+}
+function setApiKey(k) {
+  try { if (k) localStorage.setItem(AI_KEY_STORAGE, k); else localStorage.removeItem(AI_KEY_STORAGE); }
+  catch (e) {}
+  refreshAiStatusBadges();
+}
+function aiAvailable() { return !!getApiKey(); }
+
+// Live API call to Anthropic. Falls back to templated handler if no key OR if call fails.
+async function aiCall(systemPrompt, userMessage, templatedFallback) {
+  const key = getApiKey();
+  if (!key) return { mode: 'templated', text: templatedFallback() };
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: AI_MODEL,
+        max_tokens: 600,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMessage }],
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn('AI call failed:', res.status, errText);
+      return { mode: 'templated', text: templatedFallback(), error: `API ${res.status}` };
+    }
+    const data = await res.json();
+    const text = (data.content && data.content[0] && data.content[0].text) || templatedFallback();
+    return { mode: 'live', text };
+  } catch (e) {
+    console.warn('AI call error:', e);
+    return { mode: 'templated', text: templatedFallback(), error: String(e) };
+  }
+}
+
+// Update all .ai-status badges to reflect current key state
+function refreshAiStatusBadges() {
+  const live = aiAvailable();
+  document.querySelectorAll('.ai-status').forEach(el => {
+    el.textContent = live ? 'LIVE AI' : 'TEMPLATED';
+    el.classList.toggle('live', live);
+  });
+}
+
+// ─── TEMPLATED FALLBACKS ────────────────────────────
+// Each fallback writes prose that varies based on the deterministic numbers
+// passed in. Designed to look reasonable even with no API key.
+
+function tmpl_estimateCommentary(est) {
+  const i = est.inputs;
+  const sortedTrades = [...est.byTrade].sort((a, b) => b.cost - a.cost).slice(0, 3);
+  const top3 = sortedTrades.map(t => `${t.label.split(' /')[0]} (${(t.pct).toFixed(0)}%)`).join(', ');
+  const heightNote = i.clear_ht > 32
+    ? `Clear height of ${i.clear_ht}' adds a height premium concentrated in concrete, steel, and panels.`
+    : i.clear_ht < 30
+      ? `Clear height of ${i.clear_ht}' is on the lower end — no significant height premium applied.`
+      : `Clear height of ${i.clear_ht}' is near the portfolio median.`;
+  const typeNote = i.type === 'Cold Storage'
+    ? `Cold storage drives a 2× mechanical premium and 40% panel uplift, which is why mech and panels weigh heavily here.`
+    : i.type === 'Cross Dock'
+      ? `Cross-dock configuration uplifts dock equipment ~45% and site/civil ~18% vs. rear-load baseline.`
+      : i.type === 'Flex'
+        ? `Flex layout reduces dock equipment ~45% and lifts mechanical/electrical due to office build-out.`
+        : `Standard rear-load industrial — no type-specific uplifts.`;
+  const regionNote = TYPE_REGION_MULT[i.region] > 1
+    ? `${i.region} is a high-cost region (~${((TYPE_REGION_MULT[i.region]-1)*100).toFixed(0)}% above national average).`
+    : `${i.region} is a low-to-mid cost region.`;
+  return `Estimated all-in cost is ${fmtM(est.total)} (${fmt$(est.cost_per_sf, 0)}/SF) with a low–high range of ${fmtM(est.range_low)} to ${fmtM(est.range_high)}. Top three cost drivers: ${top3}. ${typeNote} ${heightNote} ${regionNote} ${est.confidence.text}.`;
+}
+
+function tmpl_bidPushback(varianceRows) {
+  const flagged = varianceRows.filter(r => r.status === 'high').sort((a, b) => b.variance - a.variance);
+  if (flagged.length === 0) return `No trades flagged as high — the bid is reasonable across the board. Consider it a tight bid worth executing on.`;
+  const top = flagged.slice(0, 3);
+  const lines = top.map((r, i) => `${i + 1}. ${r.label} — bid is ${r.variance.toFixed(0)}% above historical average ($${r.bid.toFixed(2)}/SF vs $${r.avg.toFixed(2)}/SF). Push for justification on quantities and unit prices; if no clear scope difference, request a re-bid.`);
+  return `Top categories to push back on:\n\n${lines.join('\n\n')}`;
+}
+
+function tmpl_scenarioCommentary(estA, estB) {
+  const totalDelta = estB.total - estA.total;
+  const sign = totalDelta >= 0 ? '+' : '−';
+  const absDelta = Math.abs(totalDelta);
+  const pctDelta = (totalDelta / estA.total) * 100;
+  // Find top 2 trades by absolute delta
+  const tradeDeltas = estA.byTrade.map((a, idx) => ({ label: a.label, delta: estB.byTrade[idx].cost - a.cost }));
+  tradeDeltas.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const top2 = tradeDeltas.slice(0, 2).map(td => `${td.label.split(' /')[0]} (${td.delta >= 0 ? '+' : '−'}${fmtM(Math.abs(td.delta))})`).join(' and ');
+  return `Scenario B is ${sign}${fmtM(absDelta)} (${sign}${Math.abs(pctDelta).toFixed(1)}%) versus Scenario A. The delta is concentrated in ${top2}. Use this to weigh underwriting tradeoffs — specifically whether the spec change pays for itself in deal economics.`;
+}
+
+function tmpl_aiQuery(question) {
+  const q = question.toLowerCase();
+  // Crude pattern-matching for common questions
+  if (q.includes('highest') && (q.includes('$/sf') || q.includes('cost per sf') || q.includes('costliest'))) {
+    const sorted = [...PROJECTS].sort((a, b) => (b.actual / b.sf) - (a.actual / a.sf));
+    const top = sorted[0];
+    return `${top.name} has the highest $/SF at $${(top.actual / top.sf).toFixed(2)}/SF (${top.type} in ${top.market}, ${top.year}). The next two are ${sorted[1].name} ($${(sorted[1].actual / sorted[1].sf).toFixed(2)}/SF) and ${sorted[2].name} ($${(sorted[2].actual / sorted[2].sf).toFixed(2)}/SF).`;
+  }
+  if (q.includes('over budget') || q.includes('worst variance')) {
+    const overBudget = PROJECTS.filter(p => variance(p) > 0).sort((a, b) => variance(b) - variance(a));
+    return overBudget.length === 0
+      ? `No projects are currently over budget.`
+      : `${overBudget.length} of ${PROJECTS.length} projects are over budget. ${overBudget[0].name} has the largest overrun at ${variance(overBudget[0]).toFixed(1)}%, followed by ${overBudget[1] ? overBudget[1].name + ' at ' + variance(overBudget[1]).toFixed(1) + '%' : ''}.`;
+  }
+  if (q.includes('average') && (q.includes('$/sf') || q.includes('cost per sf'))) {
+    const avg = PROJECTS.reduce((s, p) => s + p.actual / p.sf, 0) / PROJECTS.length;
+    return `Portfolio average is $${avg.toFixed(2)}/SF across ${PROJECTS.length} projects.`;
+  }
+  return `I can answer questions about cost per SF, regional variance, budget overruns, and trade-level pricing. With your Anthropic API key configured (gear icon, top-right), I can answer free-form questions across the dataset. Right now I'm in templated mode — try asking about "highest $/SF" or "worst variance".`;
+}
+
+function tmpl_underwritingNarrative(est) {
+  const i = est.inputs;
+  return `Estimated all-in construction cost: ${fmtM(est.total)} (${fmt$(est.cost_per_sf, 0)}/SF), based on ${est.comps.length} comparable Stoten projects. Building specs: ${i.sf.toLocaleString()} SF ${i.type.toLowerCase()} with ${i.clear_ht}' clear height, ${i.dock_doors} dock doors, FAR of ${i.far.toFixed(2)} in the ${i.market} market. Primary cost drivers are ${est.byTrade.sort((a,b) => b.cost - a.cost).slice(0,3).map(t => t.label.split(' /')[0]).join(', ')}, accounting for ~${est.byTrade.sort((a,b) => b.cost - a.cost).slice(0,3).reduce((s, t) => s + t.pct, 0).toFixed(0)}% of total cost. Estimate range is ${fmtM(est.range_low)} – ${fmtM(est.range_high)} (±${(((est.range_high - est.total) / est.total) * 100).toFixed(0)}% confidence band based on ${est.confidence.level.toLowerCase()} comp coverage).`;
+}
+
+function tmpl_dataFlags() {
+  const flags = [];
+  TRADES.forEach(t => {
+    const r = TRADE_RATES[t.key];
+    const threshold = r.avg - 1.5 * r.stdDev;
+    PROJECTS.forEach(p => {
+      const rate = (p.cost_cats[t.key] * 1e6) / p.sf;
+      if (rate < threshold && r.stdDev > 0.05) {
+        flags.push({ project: p.name, trade: t.label, rate, avg: r.avg });
+      }
+    });
+  });
+  return flags;
+}
+
+// ─── AI CALL WRAPPERS (one per feature) ────────────────
+
+async function ai_estimateCommentary(est) {
+  const sys = `You are an industrial real estate construction cost analyst. Given a deterministic estimate output, write 2-3 sentences explaining what's driving the number. Be specific: name the top trades, name the building-type and region effects, name the height premium effect. Do NOT recompute totals — they're already correct.`;
+  const userMsg = `Estimate output:\n${JSON.stringify({ inputs: est.inputs, total: Math.round(est.total), cost_per_sf: est.cost_per_sf.toFixed(2), top_trades: est.byTrade.sort((a,b)=>b.cost-a.cost).slice(0,4).map(t => ({ label: t.label, cost: Math.round(t.cost), pct: t.pct.toFixed(1) })), confidence: est.confidence.level }, null, 2)}\n\nWrite the commentary.`;
+  return aiCall(sys, userMsg, () => tmpl_estimateCommentary(est));
+}
+
+async function ai_bidPushback(varianceRows) {
+  const sys = `You are a Stoten construction manager helping push back on a GC bid. Given variance rows showing each trade's bid vs historical average ± 1σ, write a numbered list (3 items max) of which trades to push on, in priority order. For each, give 1-2 sentences of negotiation reasoning. Skip trades that aren't flagged "high".`;
+  const userMsg = `Variance data:\n${JSON.stringify(varianceRows.map(r => ({ trade: r.label, bid: r.bid, avg: r.avg, std_dev: r.stdDev, variance_pct: r.variance, status: r.status })), null, 2)}\n\nWrite the push-back script.`;
+  return aiCall(sys, userMsg, () => tmpl_bidPushback(varianceRows));
+}
+
+async function ai_scenarioCommentary(estA, estB) {
+  const sys = `You are explaining a cost-sensitivity comparison. Two scenarios A and B with the same trade categories. Identify the 2-3 trades driving the largest portion of the delta and explain WHY (e.g., "panels rise because taller wall = more SF"). 2-3 sentences. Don't recompute the totals.`;
+  const tradeDeltas = estA.byTrade.map((a, i) => ({ label: a.label, costA: Math.round(a.cost), costB: Math.round(estB.byTrade[i].cost), delta: Math.round(estB.byTrade[i].cost - a.cost) })).sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
+  const userMsg = `Scenario A inputs: ${JSON.stringify(estA.inputs)}\nScenario B inputs: ${JSON.stringify(estB.inputs)}\nTotal A: $${Math.round(estA.total).toLocaleString()}\nTotal B: $${Math.round(estB.total).toLocaleString()}\nTrade-level deltas (B − A): ${JSON.stringify(tradeDeltas.slice(0, 5))}\n\nWrite the commentary.`;
+  return aiCall(sys, userMsg, () => tmpl_scenarioCommentary(estA, estB));
+}
+
+async function ai_underwritingNarrative(est) {
+  const sys = `Write a single-paragraph drop-in for a deal underwriting memo. Lead with the estimated all-in construction cost, name the top cost drivers, mention the comp basis and confidence level. Professional tone, ~80-120 words. No bullet points.`;
+  const userMsg = `Estimate: ${JSON.stringify({ inputs: est.inputs, total: Math.round(est.total), range_low: Math.round(est.range_low), range_high: Math.round(est.range_high), cost_per_sf: est.cost_per_sf.toFixed(2), top_trades: est.byTrade.sort((a,b)=>b.cost-a.cost).slice(0,4).map(t => ({label: t.label, pct: t.pct.toFixed(1)})), comp_count: est.comps.length, confidence: est.confidence.level }, null, 2)}\n\nWrite the paragraph.`;
+  return aiCall(sys, userMsg, () => tmpl_underwritingNarrative(est));
+}
+
+async function ai_query(question) {
+  const sys = `You are answering questions about a 10-project industrial real estate cost dataset. Use only the data provided. Be concise (2-4 sentences). If the question requires arithmetic, do basic addition/division on the provided values — don't invent numbers not in the dataset.`;
+  const userMsg = `Dataset:\n${JSON.stringify(PROJECTS.map(p => ({ name: p.name, type: p.type, region: p.region, market: p.market, sf: p.sf, clear_ht: p.clear_ht, dock_doors: p.dock_doors, year: p.year, budget: p.budget, actual: p.actual, cost_per_sf: +(p.actual / p.sf).toFixed(2), variance_pct: +variance(p).toFixed(1), cost_cats: p.cost_cats })), null, 2)}\n\nQuestion: ${question}`;
+  return aiCall(sys, userMsg, () => tmpl_aiQuery(question));
+}
+
+// ─────────────────────────────────────────────────────
+// SETTINGS MODAL (API key)
+// ─────────────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('settings-overlay').classList.add('open');
+  const inp = document.getElementById('settings-key-input');
+  if (inp) inp.value = getApiKey();
+}
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('open');
+}
+function saveSettings() {
+  const inp = document.getElementById('settings-key-input');
+  setApiKey(inp ? inp.value.trim() : '');
+  closeSettings();
+}
+
+// ─────────────────────────────────────────────────────
+// NAVIGATION
+// ─────────────────────────────────────────────────────
+document.querySelectorAll('.sb-item[data-dash]').forEach(item => {
+  item.addEventListener('click', () => {
+    const id = item.dataset.dash;
+    document.querySelectorAll('.sb-item[data-dash]').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+    document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
+    document.getElementById('dash-' + id).classList.add('active');
+    document.body.classList.remove('menu-open'); // close mobile menu after picking a panel
+    requestAnimationFrame(() => { window.scrollTo(0,0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0; });
+    if (id === 'regional') renderComparison();
+    if (id === 'trade') renderTradeCharts();
+  });
+});
+
+// Mobile menu open/close (no-op on desktop where the topbar is display:none)
+const _menuBtn = document.getElementById('mobile-menu-btn');
+const _backdrop = document.getElementById('mobile-backdrop');
+if (_menuBtn) _menuBtn.addEventListener('click', () => document.body.classList.toggle('menu-open'));
+if (_backdrop) _backdrop.addEventListener('click', () => document.body.classList.remove('menu-open'));
+
+// ─────────────────────────────────────────────────────
+// DASHBOARD 1: PORTFOLIO
+// ─────────────────────────────────────────────────────
+function buildPortfolioTable() {
+  const tbody = document.getElementById('portfolio-tbody');
+  PROJECTS.forEach(p => {
+    const v = variance(p);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:600;color:#111827;">${p.name}</td>
+      <td>${typeBadge(p.type)}</td>
+      <td style="font-size:11px;color:#6b7280;">${p.region}</td>
+      <td>${p.market}</td>
+      <td style="color:#6b7280;">${p.gc}</td>
+      <td class="font-mono">${fmtK(p.sf)}</td>
+      <td class="font-mono">${fmtM(p.budget)}</td>
+      <td class="font-mono">${fmtM(p.actual)}</td>
+      <td class="font-mono ${varClass(v)}">${fmtPct(v)}</td>
+      <td style="color:#9ca3af;">${p.year}</td>
+    `;
+    tr.addEventListener('click', () => openProject(p.id, 'portfolio'));
+    tbody.appendChild(tr);
+  });
+}
+
+let bvaChart, regionChart;
+function buildPortfolioCharts() {
+  // Bar: Budget vs Actual
+  const sorted = [...PROJECTS].sort((a,b)=>b.actual-a.actual);
+  const ctx1 = document.getElementById('chart-bva').getContext('2d');
+  bvaChart = new Chart(ctx1, {
+    type: 'bar',
+    data: {
+      labels: sorted.map(p => p.name.length > 20 ? p.name.slice(0,18)+'…' : p.name),
+      datasets: [
+        {
+          label: 'Budget', data: sorted.map(p=>p.budget/1e6),
+          backgroundColor: '#dbeafe', borderColor: '#93c5fd', borderWidth: 1,
+        },
+        {
+          label: 'Actual', data: sorted.map(p=>p.actual/1e6),
+          backgroundColor: 'var(--accent)', borderColor: '#2563eb', borderWidth: 1,
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } } },
+      scales: {
+        x: { ticks: { font: { size: 10 }, color: '#6b7280' }, grid: { display: false } },
+        y: {
+          ticks: { font: { size: 10 }, color: '#6b7280', callback: v => '$'+v+'M' },
+          grid: { color: '#f3f4f6' }
+        }
+      }
+    }
+  });
+
+  // Donut: Region
+  const regionCounts = {};
+  PROJECTS.forEach(p => { regionCounts[p.region] = (regionCounts[p.region]||0)+1; });
+  const ctx2 = document.getElementById('chart-region').getContext('2d');
+  regionChart = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(regionCounts),
+      datasets: [{
+        data: Object.values(regionCounts),
+        backgroundColor: ['var(--accent)','#10b981','#f59e0b','#8b5cf6'],
+        borderWidth: 0,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12, padding: 12 } }
+      }
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────
+// DASHBOARD 2: REGIONAL COMPARE
+// ─────────────────────────────────────────────────────
+let activeRegion = 'all';
+
+function populateSelectors(region) {
+  const filtered = region === 'all' ? PROJECTS : PROJECTS.filter(p=>p.region===region);
+  const selA = document.getElementById('sel-a');
+  const selB = document.getElementById('sel-b');
+  const savA = +selA.value, savB = +selB.value;
+  selA.innerHTML = filtered.map(p=>`<option value="${p.id}">${p.name} — ${p.market}</option>`).join('');
+  selB.innerHTML = filtered.map(p=>`<option value="${p.id}">${p.name} — ${p.market}</option>`).join('');
+  // Default: first vs second (or Katherines Crossing vs Wolf Rd if Midwest)
+  if (region === 'Midwest' || region === 'all') {
+    const kc = PROJECTS.find(p=>p.name.includes('Katherines'));
+    const wr = PROJECTS.find(p=>p.name.includes('Wolf'));
+    if (kc) selA.value = kc.id;
+    if (wr) selB.value = wr.id;
+  } else if (filtered.length >= 2) {
+    selA.value = filtered[0].id;
+    selB.value = filtered[1].id;
+  }
+}
+
+document.querySelectorAll('.rtab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.rtab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    activeRegion = tab.dataset.region;
+    populateSelectors(activeRegion);
+    renderComparison();
+  });
+});
+
+['sel-a','sel-b'].forEach(id => {
+  document.getElementById(id).addEventListener('change', renderComparison);
+});
+
+function renderComparison() {
+  const pA = PROJECTS.find(p=>p.id === +document.getElementById('sel-a').value);
+  const pB = PROJECTS.find(p=>p.id === +document.getElementById('sel-b').value);
+  if (!pA || !pB) return;
+
+  document.getElementById('hdr-a').textContent = pA.name;
+  document.getElementById('hdr-b').textContent = pB.name;
+
+  const varA = variance(pA), varB = variance(pB);
+  const costSF_A = pA.actual / pA.sf, costSF_B = pB.actual / pB.sf;
+  const htAdj_A = clearHtAdjCostSF(pA), htAdj_B = clearHtAdjCostSF(pB);
+  const norm100_A = normTo100k(pA), norm100_B = normTo100k(pB);
+  const costDock_A = pA.actual / pA.dock_doors, costDock_B = pB.actual / pB.dock_doors;
+  const costAcre_A = pA.actual / pA.site_acres, costAcre_B = pB.actual / pB.site_acres;
+
+  function delta(a, b, fmt, lowerBetter=false) {
+    const pct = (b - a) / a * 100;
+    const cls = (lowerBetter ? pct > 0 : pct < 0) ? 'delta-higher' : 'delta-lower';
+    if (Math.abs(pct) < 0.5) return `<span class="delta-same">—</span>`;
+    return `<span class="${cls}">${pct>=0?'+':''}${pct.toFixed(1)}%</span>`;
+  }
+
+  const rows = [
+    { section: 'PROJECT PROFILE' },
+    { label: 'Type', a: typeBadge(pA.type), b: typeBadge(pB.type), rawDelta: '' },
+    { label: 'Market / Region', a: pA.market, b: pB.market, rawDelta: '' },
+    { label: 'GC', a: pA.gc, b: pB.gc, rawDelta: '' },
+    { label: 'Year Delivered', a: pA.year, b: pB.year, rawDelta: '' },
+
+    { section: 'BUILDING SPECS' },
+    { label: 'Building Size', sub: 'Gross SF', a: fmtK(pA.sf)+'SF', b: fmtK(pB.sf)+'SF',
+      rawDelta: delta(pA.sf, pB.sf, null, true) },
+    { label: 'Clear Height', sub: 'Finished floor to joist', a: pA.clear_ht+"'", b: pB.clear_ht+"'",
+      rawDelta: '' },
+    { label: 'Dock Doors', sub: 'Loading positions', a: pA.dock_doors, b: pB.dock_doors,
+      rawDelta: '' },
+    { label: 'Site Area', sub: 'Acres improved', a: pA.site_acres.toFixed(1)+' ac', b: pB.site_acres.toFixed(1)+' ac',
+      rawDelta: '' },
+
+    { section: 'COST SUMMARY' },
+    { label: 'Budget', sub: 'Owner-approved GMP', a: fmtM(pA.budget), b: fmtM(pB.budget),
+      rawDelta: delta(pA.budget, pB.budget, null, true) },
+    { label: 'Actual / Final Cost', sub: 'All-in construction', a: fmtM(pA.actual), b: fmtM(pB.actual),
+      rawDelta: delta(pA.actual, pB.actual, null, true) },
+    { label: 'Budget Variance', sub: 'vs original GMP', a: fmtPct(varA), b: fmtPct(varB),
+      aClass: varClass(varA), bClass: varClass(varB), rawDelta: '' },
+
+    { section: 'NORMALIZED METRICS' },
+    { label: 'Cost / SF', sub: 'Actual ÷ gross SF', a: fmt$(costSF_A, 2), b: fmt$(costSF_B, 2),
+      rawDelta: delta(costSF_A, costSF_B, null, true) },
+    { label: 'Height-Adj Cost / SF', sub: 'Strips out clear ht premium above 28\'', a: fmt$(htAdj_A, 2), b: fmt$(htAdj_B, 2),
+      rawDelta: delta(htAdj_A, htAdj_B, null, true) },
+    { label: 'Normalized (100K SF basis)', sub: 'For size-equivalent comparison', a: fmtM(norm100_A), b: fmtM(norm100_B),
+      rawDelta: delta(norm100_A, norm100_B, null, true) },
+    { label: 'Cost / Dock Door', sub: 'Trade-level proxy for dock loading', a: fmt$(costDock_A, 0), b: fmt$(costDock_B, 0),
+      rawDelta: delta(costDock_A, costDock_B, null, true) },
+    { label: 'Cost / Site Acre', sub: 'Site development intensity', a: fmt$(costAcre_A, 0), b: fmt$(costAcre_B, 0),
+      rawDelta: delta(costAcre_A, costAcre_B, null, true) },
+  ];
+
+  const tbody = document.getElementById('comp-tbody');
+  tbody.innerHTML = '';
+  rows.forEach(r => {
+    if (r.section) {
+      const tr = document.createElement('tr');
+      tr.className = 'section-row';
+      tr.innerHTML = `<td colspan="4">${r.section}</td>`;
+      tbody.appendChild(tr);
+    } else {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="row-label">${r.label}${r.sub ? `<small>${r.sub}</small>`:''}
+        </td>
+        <td class="val-a ${r.aClass||''}">${r.a}</td>
+        <td class="val-delta">${r.rawDelta || '<span class="delta-same">—</span>'}</td>
+        <td class="val-b ${r.bClass||''}">${r.b}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────
+// DASHBOARD 3: TRADE PRICING
+// ─────────────────────────────────────────────────────
+let tradeCharts = {};
+let activeMarket = 'all';
+
+// Per-quarter regional multipliers — each region moves independently
+const REGION_ADJ = {
+  dock: {
+    'Southwest':    [0.970,0.965,0.970,0.972,0.968,0.965,0.972,0.975,0.970],
+    'South Central':[0.930,0.925,0.932,0.938,0.933,0.928,0.935,0.940,0.942],
+    'Southeast':    [0.950,0.952,0.948,0.953,0.951,0.958,0.954,0.956,0.960],
+    'Midwest':      [1.070,1.078,1.082,1.075,1.080,1.092,1.095,1.102,1.108]
+  },
+  tilt: {
+    'Southwest':    [0.950,0.948,0.945,0.950,0.952,0.955,0.958,0.960,0.962],
+    'South Central':[0.930,0.924,0.928,0.935,0.931,0.925,0.930,0.940,0.942],
+    'Southeast':    [0.960,0.958,0.952,0.962,0.962,0.968,0.964,0.966,0.970],
+    'Midwest':      [1.060,1.068,1.072,1.065,1.072,1.082,1.085,1.092,1.100]
+  },
+  steel: {
+    'Southwest':    [0.980,0.975,0.980,0.982,0.976,0.974,0.978,0.980,0.978],
+    'South Central':[0.940,0.932,0.938,0.945,0.942,0.935,0.940,0.948,0.950],
+    'Southeast':    [0.960,0.958,0.955,0.962,0.962,0.968,0.964,0.965,0.970],
+    'Midwest':      [1.050,1.062,1.072,1.065,1.075,1.085,1.092,1.102,1.118]
+  },
+  site: {
+    'Southwest':    [0.960,0.955,0.960,0.962,0.958,0.955,0.960,0.962,0.960],
+    'South Central':[0.910,0.905,0.912,0.918,0.912,0.905,0.910,0.918,0.920],
+    'Southeast':    [0.940,0.942,0.938,0.944,0.942,0.948,0.945,0.946,0.950],
+    'Midwest':      [1.080,1.088,1.092,1.085,1.092,1.102,1.105,1.112,1.120]
+  }
+};
+
+const DETAIL_REGIONS = ['Southwest','South Central','Southeast','Midwest'];
+
+function getTradeData(key, market) {
+  const base = TRADE_BASE[key];
+  if (market === 'all') return base;
+  const mult = (REGION_MULT[market]||{})[key] || 1;
+  return base.map(v => +(v * mult).toFixed(key==='dock'||key==='steel'?0:2));
+}
+
+function getRegionalSeries(key, region) {
+  const base = TRADE_BASE[key];
+  const adjs = REGION_ADJ[key][region];
+  const isInt = key==='dock'||key==='steel';
+  return base.map((v,i) => +(v * adjs[i]).toFixed(isInt?0:2));
+}
+
+function fmtDeltaCell(val, prev) {
+  if (!prev) return '<span class="tc-delta-none">—</span>';
+  const pct = (val - prev) / prev * 100;
+  if (Math.abs(pct) < 0.05) return '<span class="tc-delta-none">—</span>';
+  const cls = pct > 0 ? 'tc-delta-up' : 'tc-delta-down';
+  const arr = pct > 0 ? '↑' : '↓';
+  return `<span class="${cls}">${arr} ${pct>=0?'+':''}${pct.toFixed(1)}%</span>`;
+}
+
+function buildTradeSummaryTable(market) {
+  const dock = getTradeData('dock', market);
+  const tilt = getTradeData('tilt', market);
+  const steel = getTradeData('steel', market);
+  const site = getTradeData('site', market);
+  const tbody = document.getElementById('trade-tbody');
+  tbody.innerHTML = '';
+  function deltaCell(arr, j) {
+    if (j === 0) return '<td style="color:#9ca3af;font-size:11px;">—</td>';
+    const pct = (arr[j]-arr[j-1])/arr[j-1]*100;
+    const cls = pct>0?'var-over':'var-under';
+    return `<td class="${cls}" style="font-size:11px;">${pct>=0?'+':''}${pct.toFixed(1)}%</td>`;
+  }
+  for (let i = QUARTERS.length - 1; i >= 0; i--) {
+    const q = QUARTERS[i];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:700;color:#374151;">${q}</td>
+      <td class="font-mono">${fmt$(dock[i])}</td>${deltaCell(dock,i)}
+      <td class="font-mono">${fmtSF2(tilt[i])}</td>${deltaCell(tilt,i)}
+      <td class="font-mono">${fmt$(steel[i])}</td>${deltaCell(steel,i)}
+      <td class="font-mono">${fmtSF2(site[i])}</td>${deltaCell(site,i)}
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function buildCommodityDetailTable(key, bodyId, fmtFn) {
+  const national = TRADE_BASE[key];
+  const regional = {};
+  DETAIL_REGIONS.forEach(r => { regional[r] = getRegionalSeries(key, r); });
+  const tbody = document.getElementById(bodyId);
+  tbody.innerHTML = '';
+
+  function cell(val, prev, isNat) {
+    const price = fmtFn(val);
+    const delta = fmtDeltaCell(val, prev);
+    return `<td class="tc-cell${isNat?' nat-col':''}">
+      <div class="tc-cell-price">${price}</div>
+      <div class="tc-cell-delta">${delta}</div>
+    </td>`;
+  }
+
+  for (let i = QUARTERS.length - 1; i >= 0; i--) {
+    const q = QUARTERS[i];
+    const isAlt = i % 2 === 1;
+    const tr = document.createElement('tr');
+    if (isAlt) tr.className = 'comm-row-alt';
+
+    let html = `<td class="tc-qtr">${q}</td>`;
+    html += cell(national[i], i>0?national[i-1]:null, true);
+    DETAIL_REGIONS.forEach(r => {
+      html += cell(regional[r][i], i>0?regional[r][i-1]:null, false);
+    });
+    tr.innerHTML = html;
+    tbody.appendChild(tr);
+  }
+}
+
+// Tab switching
+document.querySelectorAll('.ttab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.ttab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.ttab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.ttab).classList.add('active');
+  });
+});
+
+const CHART_COLORS = { dock:'var(--accent)', tilt:'#10b981', steel:'#f59e0b', site:'#8b5cf6' };
+
+function renderTradeCharts(market) {
+  market = market || activeMarket;
+  const entries = [
+    { key:'dock', canvasId:'chart-dock', priceEl:'dock-price', trendEl:'dock-trend', fmt: v=>fmt$(v) },
+    { key:'tilt', canvasId:'chart-tilt', priceEl:'tilt-price', trendEl:'tilt-trend', fmt: v=>fmtSF2(v) },
+    { key:'steel', canvasId:'chart-steel', priceEl:'steel-price', trendEl:'steel-trend', fmt: v=>fmt$(v) },
+    { key:'site', canvasId:'chart-site', priceEl:'site-price', trendEl:'site-trend', fmt: v=>fmtSF2(v) },
+  ];
+  entries.forEach(e => {
+    const data = getTradeData(e.key, market);
+    const last = data[data.length-1];
+    const prev = data[data.length-2];
+    const pct = (last-prev)/prev*100;
+    document.getElementById(e.priceEl).textContent = e.fmt(last);
+    const trendEl = document.getElementById(e.trendEl);
+    trendEl.textContent = (pct>=0?'↑ +':'↓ ')+Math.abs(pct).toFixed(1)+'% vs prior qtr';
+    trendEl.className = 'tc-trend ' + (pct>=0?'trend-up':'trend-down');
+
+    if (tradeCharts[e.key]) { tradeCharts[e.key].destroy(); }
+    const ctx = document.getElementById(e.canvasId).getContext('2d');
+    tradeCharts[e.key] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: QUARTERS,
+        datasets: [{
+          data, borderColor: CHART_COLORS[e.key], borderWidth: 2,
+          pointRadius: 3, pointBackgroundColor: CHART_COLORS[e.key],
+          tension: 0.4, fill: true,
+          backgroundColor: (ctx2) => {
+            const gradient = ctx2.chart.ctx.createLinearGradient(0,0,0,90);
+            gradient.addColorStop(0, CHART_COLORS[e.key]+'30');
+            gradient.addColorStop(1, CHART_COLORS[e.key]+'00');
+            return gradient;
+          }
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx3 => e.fmt(ctx3.raw) } } },
+        scales: {
+          x: { ticks: { font:{size:9}, color:'#9ca3af' }, grid:{display:false} },
+          y: { ticks: { font:{size:9}, color:'#9ca3af', callback: v=>e.fmt(v) }, grid:{color:'#f3f4f6'} }
+        }
+      }
+    });
+  });
+  buildTradeSummaryTable(market);
+}
+
+document.querySelectorAll('.mf-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mf-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    activeMarket = btn.dataset.mkt;
+    renderTradeCharts(activeMarket);
+  });
+});
+
+// ─────────────────────────────────────────────────────
+// PROJECT DETAIL
+// ─────────────────────────────────────────────────────
+let projChart = null;
+
+function navigateTo(dashId, activeSidebarDash) {
+  document.querySelectorAll('.sb-item[data-dash]').forEach(i => i.classList.remove('active'));
+  if (activeSidebarDash) {
+    const el = document.querySelector(`.sb-item[data-dash="${activeSidebarDash}"]`);
+    if (el) el.classList.add('active');
+  }
+  document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
+  document.getElementById('dash-' + dashId).classList.add('active');
+  document.querySelector('.main').scrollTop = 0;
+}
+
+function openProject(projectId, fromDash) {
+  const p = PROJECTS.find(pr => pr.id === projectId);
+  if (!p) return;
+
+  // Update header
+  document.getElementById('proj-title').textContent = p.name;
+  document.getElementById('proj-sub').textContent =
+    `${p.market} · ${p.type} · ${p.gc} · ${p.year}`;
+
+  // Back button — returns to origin
+  const backBtn = document.getElementById('proj-back-btn');
+  const backSidebar = (fromDash === 'history') ? 'history' : (fromDash === 'costdb') ? 'costdb' : 'portfolio';
+  backBtn.onclick = () => navigateTo(fromDash || 'portfolio', backSidebar);
+
+  // Compare button
+  document.getElementById('proj-compare-btn').onclick = () => {
+    navigateTo('regional', 'regional');
+    document.getElementById('sel-a').value = p.id;
+    // Pick a different project for B if currently same
+    const selB = document.getElementById('sel-b');
+    if (+selB.value === p.id) {
+      const other = PROJECTS.find(pr => pr.id !== p.id);
+      if (other) selB.value = other.id;
+    }
+    renderComparison();
+    // Highlight the Project B selector briefly
+    setTimeout(() => {
+      const sel = document.getElementById('sel-b');
+      sel.style.outline = '2px solid var(--accent)';
+      sel.style.outlineOffset = '2px';
+      setTimeout(() => { sel.style.outline = ''; sel.style.outlineOffset = ''; }, 2000);
+    }, 100);
+  };
+
+  // KPI cards
+  const v = variance(p);
+  const costPerSF = p.actual / p.sf;
+  const costPerDock = p.actual / p.dock_doors;
+  const portfolioAvgSF = PROJECTS.reduce((s,pr)=>s+pr.actual/pr.sf,0)/PROJECTS.length;
+  const sfDelta = ((costPerSF - portfolioAvgSF) / portfolioAvgSF * 100);
+  document.getElementById('proj-kpis').innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">Total Budget</div><div class="kpi-val">${fmtM(p.budget)}</div><div class="kpi-note">Owner-approved GMP</div></div>
+    <div class="kpi-card"><div class="kpi-label">Total Actual</div><div class="kpi-val">${fmtM(p.actual)}</div><div class="kpi-note ${v>0?'warn':'good'}">${v>0?'↑ Over':'↓ Under'} budget</div></div>
+    <div class="kpi-card"><div class="kpi-label">Budget Variance</div><div class="kpi-val ${v>0?'var-over':'var-under'}">${fmtPct(v)}</div><div class="kpi-note">${v>0?'Over':'Under'} original GMP</div></div>
+    <div class="kpi-card"><div class="kpi-label">All-In $/SF</div><div class="kpi-val">${fmt$(costPerSF,2)}</div><div class="kpi-note ${sfDelta>0?'warn':'good'}">${sfDelta>=0?'+':''}${sfDelta.toFixed(1)}% vs portfolio avg</div></div>
+    <div class="kpi-card"><div class="kpi-label">Cost / Dock Door</div><div class="kpi-val">${fmt$(costPerDock,0)}</div><div class="kpi-note">${p.dock_doors} dock positions</div></div>
+  `;
+
+  // Per-category budget estimates (derive from total budget proportionally)
+  const ratio = p.budget / p.actual;
+  const cats = p.cost_cats;
+  const catRows = [
+    { label: 'Concrete / Foundations', key: 'foundations' },
+    { label: 'Structural Steel',       key: 'steel' },
+    { label: 'Tilt-Up Panels / Skin',  key: 'panels' },
+    { label: 'Roofing',                key: 'roofing' },
+    { label: 'Mechanical',             key: 'mechanical' },
+    { label: 'Electrical',             key: 'electrical' },
+    { label: 'Plumbing / Fire Protection', key: 'plumbing_fp' },
+    { label: 'Dock Equipment',         key: 'dock_equip' },
+    { label: 'Site Work / Civil',      key: 'site_civil' },
+    { label: 'General Conditions / Fee', key: 'gc_fee' },
+  ].map(c => ({ ...c, actual: p.cost_cats[c.key] }));
+
+  // Populate breakdown subtitle
+  document.getElementById('proj-breakdown-sub').textContent =
+    `${fmtK(p.sf)} SF · ${p.gc} · ${p.year} · $/SF based on gross building area`;
+
+  // Breakdown table — full expanded columns
+  const tbody = document.getElementById('proj-breakdown-body');
+  tbody.innerHTML = '';
+  let totalBudgetCat = 0, totalActualCat = 0;
+  catRows.forEach(cat => {
+    const bud = +(cat.actual * ratio).toFixed(2);
+    const deltaM = cat.actual - bud;
+    const vPct = deltaM / bud * 100;
+    const budSF = bud * 1e6 / p.sf;
+    const actSF = cat.actual * 1e6 / p.sf;
+    const sharePct = (cat.actual / (cats.foundations + cats.steel + cats.panels + cats.roofing + cats.mechanical + cats.electrical + cats.plumbing_fp + cats.dock_equip + cats.site_civil + cats.gc_fee)) * 100;
+    totalBudgetCat += bud; totalActualCat += cat.actual;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-size:13px;font-weight:600;color:#111827;">${cat.label}</td>
+      <td style="text-align:right;font-size:13px;font-family:monospace;color:#6b7280;">$${bud.toFixed(2)}M</td>
+      <td style="text-align:right;font-size:11px;font-family:monospace;color:#9ca3af;">${fmt$(budSF,2)}</td>
+      <td style="text-align:right;font-size:14px;font-family:monospace;font-weight:700;background:#f8fbff;color:#0369a1;">$${cat.actual.toFixed(2)}M</td>
+      <td style="text-align:right;font-size:12px;font-family:monospace;background:#f8fbff;color:#0369a1;">${fmt$(actSF,2)}</td>
+      <td style="text-align:right;font-size:13px;font-family:monospace;font-weight:600;" class="${deltaM>0?'var-over':'var-under'}">${deltaM>=0?'+':''}$${Math.abs(deltaM).toFixed(2)}M</td>
+      <td style="text-align:right;font-size:13px;font-weight:700;" class="${vPct>0?'var-over':'var-under'}">${fmtPct(vPct)}</td>
+      <td style="text-align:right;font-size:12px;color:#9ca3af;">${sharePct.toFixed(0)}%</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  // Total row
+  const totPct = (totalActualCat - totalBudgetCat) / totalBudgetCat * 100;
+  const totDeltaM = totalActualCat - totalBudgetCat;
+  const totRow = document.createElement('tr');
+  totRow.style.borderTop = '2px solid #e5e7eb';
+  totRow.style.background = '#f9fafb';
+  totRow.innerHTML = `
+    <td style="font-size:13px;font-weight:700;color:#111827;">Total</td>
+    <td style="text-align:right;font-size:13px;font-family:monospace;font-weight:700;color:#374151;">$${totalBudgetCat.toFixed(2)}M</td>
+    <td style="text-align:right;font-size:11px;font-family:monospace;color:#9ca3af;">${fmt$(totalBudgetCat*1e6/p.sf,2)}</td>
+    <td style="text-align:right;font-size:14px;font-family:monospace;font-weight:700;background:#f0f9ff;color:#0369a1;">$${totalActualCat.toFixed(2)}M</td>
+    <td style="text-align:right;font-size:12px;font-family:monospace;background:#f0f9ff;color:#0369a1;">${fmt$(totalActualCat*1e6/p.sf,2)}</td>
+    <td style="text-align:right;font-size:13px;font-family:monospace;font-weight:700;" class="${totDeltaM>0?'var-over':'var-under'}">${totDeltaM>=0?'+':''}$${Math.abs(totDeltaM).toFixed(2)}M</td>
+    <td style="text-align:right;font-size:13px;font-weight:700;" class="${totPct>0?'var-over':'var-under'}">${fmtPct(totPct)}</td>
+    <td style="text-align:right;font-size:12px;color:#9ca3af;">100%</td>
+  `;
+  tbody.appendChild(totRow);
+
+  // Chart — grouped horizontal bars per category
+  if (projChart) { projChart.destroy(); projChart = null; }
+  const ctx = document.getElementById('proj-cat-chart').getContext('2d');
+  projChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: catRows.map(c => c.label),
+      datasets: [
+        {
+          label: 'Budget',
+          data: catRows.map(c => +(c.actual * ratio).toFixed(2)),
+          backgroundColor: '#dbeafe', borderColor: '#93c5fd', borderWidth: 1,
+        },
+        {
+          label: 'Actual',
+          data: catRows.map(c => c.actual),
+          backgroundColor: catRows.map(c => {
+            const vv = (c.actual - c.actual*ratio) / (c.actual*ratio);
+            return vv > 0.05 ? '#f97316' : vv < -0.02 ? '#34d399' : 'var(--accent)';
+          }),
+          borderWidth: 0,
+        }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { font:{size:11}, boxWidth:12 } },
+        tooltip: { callbacks: { label: ctx2 => '$' + ctx2.raw.toFixed(1) + 'M' } }
+      },
+      scales: {
+        x: {
+          ticks: { font:{size:10}, color:'#6b7280', callback: v=>'$'+v+'M' },
+          grid: { color:'#f3f4f6' }
+        },
+        y: { ticks: { font:{size:11}, color:'#374151' }, grid: { display:false } }
+      }
+    }
+  });
+
+  // Specs strip — 3×2 grid inside the aux panel
+  document.getElementById('proj-specs-strip').innerHTML = [
+    { label:'General Contractor', val:p.gc },
+    { label:'Building Size', val:fmtK(p.sf)+' SF' },
+    { label:'Dock Doors', val:p.dock_doors+' positions' },
+    { label:'Market', val:p.market },
+    { label:'Clear Height', val:p.clear_ht+"'" },
+    { label:'Site Area', val:p.site_acres.toFixed(1)+' acres' },
+  ].map((s,i) => {
+    const isLast = i >= 3;
+    return `<div class="proj-spec-cell" style="border-bottom:${isLast?'none':'1px solid #f3f4f6'};">
+      <div class="proj-spec-label">${s.label}</div>
+      <div class="proj-spec-val" style="font-size:13px;">${s.val}</div>
+    </div>`;
+  }).join('');
+
+  // Portfolio ranking
+  const bySF = [...PROJECTS].sort((a,b)=>b.actual/b.sf - a.actual/a.sf);
+  const sfRank = bySF.findIndex(pr=>pr.id===p.id)+1;
+  const byVar = [...PROJECTS].sort((a,b)=>Math.abs(variance(b))-Math.abs(variance(a)));
+  const varRank = byVar.findIndex(pr=>pr.id===p.id)+1;
+  const sameRegion = PROJECTS.filter(pr=>pr.region===p.region && pr.id!==p.id);
+  const regionNote = sameRegion.length
+    ? `${sameRegion.length} other project${sameRegion.length>1?'s':''} in ${p.region}: ${sameRegion.map(pr=>pr.name).join(', ')}.`
+    : 'Only project in this region.';
+  document.getElementById('proj-ranking').innerHTML =
+    `<strong>Portfolio context:</strong> ${p.name} ranks <strong>#${sfRank} of ${PROJECTS.length}</strong> by all-in $/SF ($${(p.actual/p.sf).toFixed(2)}/SF). ` +
+    `Budget variance of <strong>${fmtPct(v)}</strong> places it <strong>#${varRank}</strong> by absolute variance magnitude. ` +
+    regionNote;
+
+  // Navigate (no sidebar highlight — project detail isn't a sidebar item)
+  document.querySelectorAll('.sb-item[data-dash]').forEach(i => i.classList.remove('active'));
+  document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
+  document.getElementById('dash-project').classList.add('active');
+}
+
+// ─────────────────────────────────────────────────────
+// BID COMPARE
+// ─────────────────────────────────────────────────────
+const BID_DATA = {
+  katherines: {
+    title: 'Bid Leveling — Katherines Crossing',
+    sub: '3 GC bids · Chicago, IL · 135,000 SF industrial',
+    gcs: ['Power Construction','Pepper Construction','Bulley & Andrews'],
+    rows: [
+      ['Concrete / Structural',  4380000, 4510000, 4720000, 'Slab, tilt columns, grade beams'],
+      ['Tilt-Up Panel / Skin',   3590000, 3680000, 3850000, 'Panels, erection, caulk'],
+      ['Structural Steel',       2140000, 2210000, 2290000, 'Joists, deck, columns'],
+      ['MEP — Mechanical',        980000, 1020000, 1140000, 'HVLS fans, RTUs, dock vent'],
+      ['MEP — Electrical',       1340000, 1280000, 1390000, 'Power, lighting, fire alarm'],
+      ['MEP — Plumbing / FP',     610000,  590000,  640000, 'Restrooms, fire protection'],
+      ['Site Work / Civil',      3820000, 3940000, 4110000, 'Paving, grading, utilities, storm'],
+      ['Dock Doors & Levelers',   290000,  310000,  295000, '22 dock doors incl. levelers & seals'],
+      ['General Conditions',      860000,  910000,  980000, 'Supervision, temp, insurance, bonds'],
+      ['Fee / Overhead',          190000,  230000,  270000, 'GC profit margin'],
+    ],
+    totals: [18200000, 18680000, 19685000],
+    leveled: [18200000, 18420000, 19100000],
+    spread: '$1,485,000 (8.2%)',
+    levelNote: 'After normalizing FP allowance & GC fee differences'
+  },
+  wolfrd: {
+    title: 'Bid Leveling — Wolf Rd Distribution',
+    sub: '3 GC bids · Chicago, IL · 118,000 SF industrial',
+    gcs: ['Pepper Construction','Skender Construction','W.E. O\'Neil Construction'],
+    rows: [
+      ['Concrete / Structural',  3820000, 3950000, 4120000, 'Slab, tilt columns, grade beams'],
+      ['Tilt-Up Panel / Skin',   3140000, 3230000, 3380000, 'Panels, erection, caulk'],
+      ['Structural Steel',       1870000, 1940000, 2010000, 'Joists, deck, columns'],
+      ['MEP — Mechanical',        860000,  900000,  990000, 'HVLS fans, RTUs, dock vent'],
+      ['MEP — Electrical',       1170000, 1120000, 1210000, 'Power, lighting, fire alarm'],
+      ['MEP — Plumbing / FP',     530000,  520000,  560000, 'Restrooms, fire protection'],
+      ['Site Work / Civil',      3340000, 3450000, 3590000, 'Paving, grading, utilities, storm'],
+      ['Dock Doors & Levelers',   250000,  270000,  255000, '19 dock doors incl. levelers & seals'],
+      ['General Conditions',      750000,  800000,  860000, 'Supervision, temp, insurance, bonds'],
+      ['Fee / Overhead',          170000,  200000,  240000, 'GC profit margin'],
+    ],
+    totals: [15900000, 16380000, 17215000],
+    leveled: [15900000, 16100000, 16850000],
+    spread: '$1,315,000 (8.3%)',
+    levelNote: 'After normalizing FP allowance & GC fee differences'
+  },
+  nashville: {
+    title: 'Bid Leveling — Nashville Industrial Park',
+    sub: '3 GC bids · Nashville, TN · 96,000 SF industrial',
+    gcs: ['Skanska USA','Turner Construction','Gilbane Building Co.'],
+    rows: [
+      ['Concrete / Structural',  2980000, 3080000, 3210000, 'Slab, tilt columns, grade beams'],
+      ['Tilt-Up Panel / Skin',   2440000, 2520000, 2640000, 'Panels, erection, caulk'],
+      ['Structural Steel',       1450000, 1510000, 1570000, 'Joists, deck, columns'],
+      ['MEP — Mechanical',        700000,  730000,  810000, 'HVLS fans, RTUs, dock vent'],
+      ['MEP — Electrical',        950000,  910000,  990000, 'Power, lighting, fire alarm'],
+      ['MEP — Plumbing / FP',     430000,  420000,  460000, 'Restrooms, fire protection'],
+      ['Site Work / Civil',      2580000, 2670000, 2790000, 'Paving, grading, utilities, storm'],
+      ['Dock Doors & Levelers',   200000,  215000,  205000, '16 dock doors incl. levelers & seals'],
+      ['General Conditions',      610000,  650000,  700000, 'Supervision, temp, insurance, bonds'],
+      ['Fee / Overhead',          140000,  175000,  200000, 'GC profit margin'],
+    ],
+    totals: [12480000, 12880000, 13575000],
+    leveled: [12480000, 12700000, 13280000],
+    spread: '$1,095,000 (8.8%)',
+    levelNote: 'After normalizing FP allowance & GC fee differences'
+  }
+};
+
+const BID_COLORS = [
+  { bg:'#eff6ff', text:'#1e40af', label:'Low Bid' },
+  { bg:'#f0fdf4', text:'#15803d', label:'Mid Bid' },
+  { bg:'#fdf4ff', text:'#7e22ce', label:'High Bid' },
+];
+
+function fmtDollar(v) {
+  return '$' + v.toLocaleString('en-US');
+}
+
+function renderBidTable(key) {
+  const d = BID_DATA[key];
+  if (!d) return;
+  const wrap = document.getElementById('bid-table-wrap');
+  if (!wrap) return;  // v3 removed this; safe no-op
+
+  const spread = d.totals[2] - d.totals[0];
+  const spreadPct = (spread / d.totals[0] * 100).toFixed(1);
+
+  let rowsHtml = d.rows.map(([scope, a, b, c, note]) => `
+    <tr>
+      <td style="font-size:12px;">${scope}</td>
+      <td style="text-align:right;font-weight:600;color:${BID_COLORS[0].text};font-family:monospace;font-size:12px;">${fmtDollar(a)}</td>
+      <td style="text-align:right;font-weight:600;color:${BID_COLORS[1].text};font-family:monospace;font-size:12px;">${fmtDollar(b)}</td>
+      <td style="text-align:right;font-weight:600;color:${BID_COLORS[2].text};font-family:monospace;font-size:12px;">${fmtDollar(c)}</td>
+      <td style="font-size:11px;color:#9ca3af;">${note}</td>
+    </tr>`).join('');
+
+  wrap.innerHTML = `
+    <div class="tcard">
+      <div class="tcard-hdr">
+        <div class="tcard-title">${d.title}</div>
+        <div class="tcard-sub">${d.sub}</div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Scope Item</th>
+            ${d.gcs.map((gc, i) => `<th style="text-align:right;background:${BID_COLORS[i].bg};color:${BID_COLORS[i].text};">${gc}<br><span style="font-weight:400;font-size:9px;color:#6b7280;">${BID_COLORS[i].label}</span></th>`).join('')}
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+          <tr style="border-top:2px solid #e5e7eb;background:#f9fafb;">
+            <td style="font-size:13px;font-weight:700;">TOTAL BID</td>
+            ${d.totals.map((t, i) => `<td style="text-align:right;font-size:13px;font-weight:700;color:${BID_COLORS[i].text};font-family:monospace;">${fmtDollar(t)}</td>`).join('')}
+            <td style="font-size:11px;color:#6b7280;font-weight:600;">Spread: ${fmtDollar(spread)} (${spreadPct}%)</td>
+          </tr>
+          <tr style="background:#fffbeb;">
+            <td style="font-size:11px;color:#92400e;font-weight:600;">Leveled Total (scope normalized)</td>
+            ${d.leveled.map(t => `<td style="text-align:right;font-size:12px;font-weight:700;color:#92400e;font-family:monospace;">${fmtDollar(t)}</td>`).join('')}
+            <td style="font-size:11px;color:#92400e;">${d.levelNote}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
+}
+
+// ─────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────
+buildPortfolioTable();
+buildPortfolioCharts();
+populateSelectors('all');
+renderComparison();
+// Build all commodity detail tables on load (they don't need market filter — show all regions)
+buildCommodityDetailTable('dock', 'detail-dock', v => fmt$(v));
+buildCommodityDetailTable('tilt', 'detail-tilt', v => fmtSF2(v));
+buildCommodityDetailTable('steel', 'detail-steel', v => fmt$(v));
+buildCommodityDetailTable('site', 'detail-site', v => fmtSF2(v));
+renderBidTable('katherines');
+
+// ─────────────────────────────────────────────────────
+// COST DATABASE TABLE
+// ─────────────────────────────────────────────────────
+function buildCostDbTable() {
+  const tbody = document.getElementById('costdb-tbody');
+  const tfoot = document.getElementById('costdb-tfoot');
+  const CAT_KEYS = ['foundations','steel','panels','roofing','mechanical','electrical','plumbing_fp','dock_equip','site_civil','gc_fee'];
+  const totCats = {};
+  CAT_KEYS.forEach(k => { totCats[k] = 0; });
+  let totActual = 0, totSF = 0;
+  PROJECTS.forEach(p => {
+    const cats = p.cost_cats;
+    CAT_KEYS.forEach(k => { totCats[k] += cats[k]; });
+    totActual += p.actual; totSF += p.sf;
+    const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    let html = `
+      <td style="font-weight:600;color:#111827;">${p.name}</td>
+      <td style="color:#9ca3af;">${p.year}</td>
+      <td class="font-mono">${fmtK(p.sf)}</td>`;
+    CAT_KEYS.forEach(k => {
+      html += `<td class="font-mono">$${cats[k].toFixed(2)}M</td>`;
+    });
+    html += `
+      <td class="font-mono" style="background:#f0f9ff;font-weight:700;color:#0369a1;">${fmtM(p.actual)}</td>
+      <td class="font-mono" style="background:#f0f9ff;font-weight:700;color:#0369a1;">${fmt$(p.actual/p.sf,2)}</td>
+    `;
+    tr.innerHTML = html;
+    tr.addEventListener('click', () => openProject(p.id, 'costdb'));
+    tbody.appendChild(tr);
+  });
+  const avgSF = totActual / totSF;
+  let footHtml = `<tr style="background:#f9fafb;border-top:2px solid #e5e7eb;">
+    <td colspan="2" style="font-weight:700;font-size:12px;color:#374151;">Portfolio Total</td>
+    <td class="font-mono" style="font-weight:600;">${fmtK(totSF/10)}<span style="color:#9ca3af;font-size:10px;"> avg</span></td>`;
+  CAT_KEYS.forEach(k => {
+    footHtml += `<td class="font-mono" style="font-weight:600;">$${(totCats[k]/10).toFixed(2)}M</td>`;
+  });
+  footHtml += `
+    <td class="font-mono" style="background:#e0f2fe;font-weight:700;color:#0369a1;">${fmtM(totActual/10)}</td>
+    <td class="font-mono" style="background:#e0f2fe;font-weight:700;color:#0369a1;">${fmt$(avgSF,2)}</td>
+  </tr>`;
+  tfoot.innerHTML = footHtml;
+}
+buildCostDbTable();
+
+// ─────────────────────────────────────────────────────
+// PROJECT HISTORY CARDS
+// ─────────────────────────────────────────────────────
+function buildHistoryCards() {
+  const container = document.getElementById('history-cards');
+  const sorted = [...PROJECTS].sort((a,b)=>b.year-a.year);
+  sorted.forEach(p => {
+    const v = variance(p);
+    const card = document.createElement('div');
+    card.className = 'tcard';
+    card.style.cursor = 'pointer';
+    card.innerHTML = `
+      <div style="padding:14px 16px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#111827;">${p.name}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px;">${p.market} · ${p.gc}</div>
+        </div>
+        <span style="font-size:11px;font-weight:600;color:#6b7280;background:#f3f4f6;padding:2px 8px;border-radius:4px;">${p.year}</span>
+      </div>
+      <div style="padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Type</div><div style="font-size:12px;font-weight:600;">${p.type}</div></div>
+        <div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Building SF</div><div style="font-size:12px;font-weight:600;">${fmtK(p.sf)}</div></div>
+        <div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Total Cost</div><div style="font-size:12px;font-weight:600;">${fmtM(p.actual)}</div></div>
+        <div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">All-In $/SF</div><div style="font-size:12px;font-weight:600;">${fmt$(p.actual/p.sf,2)}</div></div>
+        <div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Clear Height</div><div style="font-size:12px;font-weight:600;">${p.clear_ht}'</div></div>
+        <div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Budget Variance</div><div style="font-size:12px;font-weight:600;${v>0?'color:#d97706':'color:#059669'}">${fmtPct(v)}</div></div>
+      </div>
+    `;
+    card.addEventListener('click', () => openProject(p.id, 'history'));
+    container.appendChild(card);
+  });
+}
+buildHistoryCards();
+
+// ─────────────────────────────────────────────────────
+// V3 — QUICK ESTIMATE PANEL WIRING
+// ─────────────────────────────────────────────────────
+
+const QE_PRESETS = {
+  'rear-load':    { type: 'Industrial',   sf: 130000, clear_ht: 32, far: 0.40, dock_doors: 22, region: 'Midwest',       fire_tank: false },
+  'cross-dock':   { type: 'Cross Dock',   sf: 200000, clear_ht: 36, far: 0.35, dock_doors: 50, region: 'South Central', fire_tank: true  },
+  'cold-storage': { type: 'Cold Storage', sf: 60000,  clear_ht: 40, far: 0.45, dock_doors: 8,  region: 'Southwest',     fire_tank: true  },
+  'flex':         { type: 'Flex',         sf: 75000,  clear_ht: 26, far: 0.42, dock_doors: 10, region: 'Southeast',     fire_tank: false },
+};
+
+let qeState = { ...QE_PRESETS['rear-load'], market: 'Chicago, IL' };
+let qeCurrentEstimate = null;
+let qeDebounceTimer = null;
+
+function updateSliderFill(el) {
+  const min = +el.min, max = +el.max, val = +el.value;
+  el.style.setProperty('--filled', `${((val - min) / (max - min)) * 100}%`);
+}
+
+function syncQeMarketDropdown() {
+  const sel = document.getElementById('qe-market');
+  const markets = REGION_MARKETS[qeState.region] || [];
+  sel.innerHTML = markets.map(m => `<option value="${m}">${m}</option>`).join('');
+  if (markets.includes(qeState.market)) sel.value = qeState.market;
+  else { sel.value = markets[0] || ''; qeState.market = sel.value; }
+}
+
+function syncQeUiFromState() {
+  document.getElementById('qe-sf').value = qeState.sf;
+  document.getElementById('qe-ht').value = qeState.clear_ht;
+  document.getElementById('qe-far').value = qeState.far;
+  document.getElementById('qe-doors').value = qeState.dock_doors;
+  document.getElementById('qe-sf-val').textContent = qeState.sf.toLocaleString() + ' SF';
+  document.getElementById('qe-ht-val').textContent = qeState.clear_ht + ' ft';
+  document.getElementById('qe-far-val').textContent = qeState.far.toFixed(2);
+  document.getElementById('qe-doors-val').textContent = qeState.dock_doors;
+  const acres = (qeState.sf / qeState.far / 43560);
+  document.getElementById('qe-acres-derived').textContent = `≈ ${acres.toFixed(1)} site acres`;
+  ['qe-sf','qe-ht','qe-far','qe-doors'].forEach(id => updateSliderFill(document.getElementById(id)));
+  document.querySelectorAll('#qe-type .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.val === qeState.type));
+  document.querySelectorAll('#qe-region .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.val === qeState.region));
+  document.getElementById('qe-firetank-toggle').classList.toggle('on', !!qeState.fire_tank);
+  syncQeMarketDropdown();
+}
+
+function recomputeEstimate() {
+  const est = estimateProject(qeState);
+  qeCurrentEstimate = est;
+  // Total + range + per-SF
+  document.getElementById('qe-total').textContent = fmtM(est.total);
+  document.getElementById('qe-range').textContent = `${fmtM(est.range_low)} – ${fmtM(est.range_high)}`;
+  document.getElementById('qe-psf').textContent = fmt$(est.cost_per_sf, 0);
+  document.getElementById('qe-pdoor').textContent = est.cost_per_door ? fmt$(est.cost_per_door, 0) : '—';
+  // Confidence
+  const confEl = document.getElementById('qe-confidence');
+  confEl.textContent = est.confidence.text;
+  const confColors = { success: ['var(--success-bg)', 'var(--success)'], accent: ['var(--accent-bg)', 'var(--accent)'], warn: ['var(--warn-bg)', 'var(--warn)'], danger: ['var(--danger-bg)', 'var(--danger)'] };
+  const [bg, fg] = confColors[est.confidence.cls] || confColors.accent;
+  confEl.style.background = bg; confEl.style.color = fg;
+  // Trade breakdown
+  const tbody = document.getElementById('qe-breakdown-tbody');
+  tbody.innerHTML = est.byTrade.map(t => `
+    <tr>
+      <td style="font-weight:500;">${t.label}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">$${t.adjustedRate.toFixed(2)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">${fmtM(t.cost)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted);">${t.pct.toFixed(1)}%</td>
+    </tr>
+  `).join('');
+  // Comps list
+  const compsList = document.getElementById('qe-comps-list');
+  if (est.comps.length === 0) {
+    compsList.innerHTML = '<div style="padding:14px 18px;font-size:12px;color:var(--text-faint);">No close comps under current criteria. Estimate uses portfolio averages.</div>';
+    document.getElementById('qe-comps-sub').textContent = '0 close matches';
+  } else {
+    compsList.innerHTML = est.comps.map(c => {
+      const p = c.project;
+      return `<div style="padding:9px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:baseline;font-size:13px;">
+        <div><span style="font-weight:500;">${p.name}</span> <span style="color:var(--text-faint);font-size:11px;">· ${p.type} · ${p.market}</span></div>
+        <div style="font-variant-numeric:tabular-nums;color:var(--text-muted);">${fmtK(p.sf)} · ${p.clear_ht}' · ${fmt$(p.actual / p.sf, 0)}/SF</div>
+      </div>`;
+    }).join('');
+    document.getElementById('qe-comps-sub').textContent = `${est.comps.length} close match${est.comps.length === 1 ? '' : 'es'} from the portfolio`;
+  }
+  // Trigger AI commentary (debounced)
+  refreshEstimateCommentary();
+  refreshUnderwriting();
+}
+
+let qeCommentaryTimer = null;
+function refreshEstimateCommentary() {
+  if (!qeCurrentEstimate) return;
+  document.getElementById('qe-commentary').textContent = '…analyzing';
+  if (qeCommentaryTimer) clearTimeout(qeCommentaryTimer);
+  qeCommentaryTimer = setTimeout(async () => {
+    const r = await ai_estimateCommentary(qeCurrentEstimate);
+    document.getElementById('qe-commentary').textContent = r.text;
+  }, 350);
+}
+
+let qeUnderwritingTimer = null;
+function refreshUnderwriting() {
+  if (!qeCurrentEstimate) return;
+  document.getElementById('qe-underwriting').textContent = '…analyzing';
+  if (qeUnderwritingTimer) clearTimeout(qeUnderwritingTimer);
+  qeUnderwritingTimer = setTimeout(async () => {
+    const r = await ai_underwritingNarrative(qeCurrentEstimate);
+    document.getElementById('qe-underwriting').textContent = r.text;
+  }, 400);
+}
+
+// Wire all the Quick Estimate event listeners
+function initQuickEstimate() {
+  // Sliders
+  ['qe-sf','qe-ht','qe-far','qe-doors'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', () => {
+      const v = +el.value;
+      if (id === 'qe-sf') { qeState.sf = v; document.getElementById('qe-sf-val').textContent = v.toLocaleString() + ' SF'; }
+      if (id === 'qe-ht') { qeState.clear_ht = v; document.getElementById('qe-ht-val').textContent = v + ' ft'; }
+      if (id === 'qe-far') { qeState.far = v; document.getElementById('qe-far-val').textContent = v.toFixed(2); }
+      if (id === 'qe-doors') { qeState.dock_doors = v; document.getElementById('qe-doors-val').textContent = v; }
+      const acres = (qeState.sf / qeState.far / 43560);
+      document.getElementById('qe-acres-derived').textContent = `≈ ${acres.toFixed(1)} site acres`;
+      updateSliderFill(el);
+      if (qeDebounceTimer) clearTimeout(qeDebounceTimer);
+      qeDebounceTimer = setTimeout(recomputeEstimate, 60);
+    });
+  });
+  // Type segmented
+  document.querySelectorAll('#qe-type .seg-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      qeState.type = b.dataset.val;
+      document.querySelectorAll('#qe-type .seg-btn').forEach(x => x.classList.toggle('active', x === b));
+      recomputeEstimate();
+    });
+  });
+  // Region segmented (auto-syncs market dropdown)
+  document.querySelectorAll('#qe-region .seg-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      qeState.region = b.dataset.val;
+      document.querySelectorAll('#qe-region .seg-btn').forEach(x => x.classList.toggle('active', x === b));
+      syncQeMarketDropdown();
+      recomputeEstimate();
+    });
+  });
+  // Market dropdown
+  document.getElementById('qe-market').addEventListener('change', e => {
+    qeState.market = e.target.value;
+    recomputeEstimate();
+  });
+  // Fire tank toggle
+  document.getElementById('qe-firetank-toggle').addEventListener('click', () => {
+    qeState.fire_tank = !qeState.fire_tank;
+    document.getElementById('qe-firetank-toggle').classList.toggle('on', qeState.fire_tank);
+    recomputeEstimate();
+  });
+  // Presets
+  document.querySelectorAll('#qe-presets .preset-chip').forEach(b => {
+    b.addEventListener('click', () => {
+      const preset = QE_PRESETS[b.dataset.preset];
+      if (!preset) return;
+      qeState = { ...preset, market: REGION_MARKETS[preset.region][0] };
+      syncQeUiFromState();
+      recomputeEstimate();
+    });
+  });
+  // Initial sync
+  syncQeUiFromState();
+  recomputeEstimate();
+}
+initQuickEstimate();
+
+// ─────────────────────────────────────────────────────
+// V3 — BID COMPARE PANEL
+// ─────────────────────────────────────────────────────
+
+let bcLastRows = null;
+
+function bcRender() {
+  const rows = TRADES.map(t => {
+    const r = TRADE_RATES[t.key];
+    const inputId = 'bc-bid-' + t.key;
+    const inp = document.getElementById(inputId);
+    const bid = inp && inp.value !== '' ? parseFloat(inp.value) : null;
+    return { trade: t, rate: r, bid };
+  });
+  const tbody = document.getElementById('bc-tbody');
+  tbody.innerHTML = rows.map(({ trade, rate, bid }) => {
+    let varianceCell = '<td style="text-align:right;color:var(--text-faint);">—</td>';
+    let flagCell = '<td style="padding-left:14px;color:var(--text-faint);font-size:12px;">—</td>';
+    if (bid != null && !isNaN(bid)) {
+      const v = (bid - rate.avg) / rate.avg * 100;
+      let cls = 'reasonable', label = 'Reasonable', color = 'var(--text-muted)', bg = 'transparent';
+      if (bid > rate.avg + rate.stdDev) { cls = 'high'; label = '⚠ Above norm'; color = 'var(--danger)'; bg = 'var(--danger-bg)'; }
+      else if (bid < rate.avg - rate.stdDev) { cls = 'low'; label = '✓ Below norm'; color = 'var(--success)'; bg = 'var(--success-bg)'; }
+      varianceCell = `<td style="text-align:right;font-variant-numeric:tabular-nums;color:${color};font-weight:500;">${v >= 0 ? '+' : ''}${v.toFixed(1)}%</td>`;
+      flagCell = `<td style="padding-left:14px;"><span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${bg};color:${color};font-weight:500;">${label}</span></td>`;
+    }
+    return `<tr>
+      <td style="font-weight:500;">${trade.label}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted);">$${rate.avg.toFixed(2)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-faint);font-size:12px;">±$${rate.stdDev.toFixed(2)}</td>
+      <td style="text-align:right;"><input type="number" step="0.01" placeholder="—" id="bc-bid-${trade.key}" value="${bid != null && !isNaN(bid) ? bid.toFixed(2) : ''}" style="width:100px;padding:5px 8px;font-family:inherit;font-size:13px;text-align:right;border:1px solid var(--border-strong);border-radius:5px;background:var(--surface);"></td>
+      ${varianceCell}
+      ${flagCell}
+    </tr>`;
+  }).join('');
+  // Re-attach input listeners
+  TRADES.forEach(t => {
+    const inp = document.getElementById('bc-bid-' + t.key);
+    if (inp) inp.addEventListener('input', () => { bcRender(); bcUpdateAi(); });
+  });
+  // Summary
+  const filledRows = rows.filter(r => r.bid != null && !isNaN(r.bid));
+  const flaggedHigh = filledRows.filter(r => r.bid > r.rate.avg + r.rate.stdDev).length;
+  document.getElementById('bc-summary').textContent = filledRows.length === 0
+    ? 'Enter at least one bid to see analysis.'
+    : `${filledRows.length} trade${filledRows.length === 1 ? '' : 's'} entered · ${flaggedHigh} flagged above norm`;
+  // Cache for AI
+  bcLastRows = bidVariance(Object.fromEntries(rows.filter(r => r.bid != null && !isNaN(r.bid)).map(r => [r.trade.key, r.bid])));
+}
+
+function bcLoadSample() {
+  // Realistic GC bid relative to portfolio averages.
+  // Foundations and panels deliberately high (above +1σ) so flags trigger.
+  // Steel deliberately low (under −1σ) to show the green flag.
+  const sample = {
+    foundations: 45.00,   // HIGH — above norm
+    steel: 11.50,         // LOW — below norm
+    panels: 32.00,        // HIGH — above norm
+    roofing: 10.50,       // reasonable
+    mechanical: 14.00,    // reasonable
+    electrical: 16.00,    // reasonable
+    plumbing_fp: 6.00,    // reasonable
+    dock_equip: 3.80,     // reasonable
+    site_civil: 18.00,    // reasonable
+    gc_fee: 7.50,         // reasonable
+  };
+  bcRender();  // ensure inputs exist
+  TRADES.forEach(t => {
+    const inp = document.getElementById('bc-bid-' + t.key);
+    if (inp && sample[t.key] != null) inp.value = sample[t.key].toFixed(2);
+  });
+  bcRender();
+  bcUpdateAi();
+}
+function bcClear() {
+  TRADES.forEach(t => {
+    const inp = document.getElementById('bc-bid-' + t.key);
+    if (inp) inp.value = '';
+  });
+  bcRender();
+  document.getElementById('bc-pushback').textContent = 'Enter a bid above and the talking points will appear here.';
+}
+
+let bcAiTimer = null;
+function bcUpdateAi() {
+  if (bcAiTimer) clearTimeout(bcAiTimer);
+  bcAiTimer = setTimeout(bcRefreshAi, 600);
+}
+async function bcRefreshAi() {
+  if (!bcLastRows || bcLastRows.every(r => r.bid == null)) {
+    document.getElementById('bc-pushback').textContent = 'Enter a bid above and the talking points will appear here.';
+    return;
+  }
+  const onlyEntered = bcLastRows.filter(r => r.bid != null);
+  document.getElementById('bc-pushback').textContent = '…analyzing';
+  const result = await ai_bidPushback(onlyEntered);
+  document.getElementById('bc-pushback').textContent = result.text;
+}
+
+// Init Bid Compare
+bcRender();
+
+// ─────────────────────────────────────────────────────
+// V3 — SCENARIO COMPARE PANEL
+// ─────────────────────────────────────────────────────
+
+const SC_DEFAULT_A = { type: 'Industrial', sf: 130000, clear_ht: 36, far: 0.40, dock_doors: 22, region: 'Midwest', market: 'Chicago, IL', fire_tank: false };
+const SC_DEFAULT_B = { type: 'Industrial', sf: 130000, clear_ht: 40, far: 0.40, dock_doors: 22, region: 'Midwest', market: 'Chicago, IL', fire_tank: false };
+let scStateA = { ...SC_DEFAULT_A };
+let scStateB = { ...SC_DEFAULT_B };
+
+function scInputsHtml(side) {
+  return `
+    <div style="margin-bottom:10px;">
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Building type</div>
+      <div class="seg-row" id="sc-type-${side}">
+        <button class="seg-btn ${side==='a'?'active':''}" data-val="Industrial">Rear-load</button>
+        <button class="seg-btn" data-val="Cross Dock">X-dock</button>
+        <button class="seg-btn" data-val="Flex">Flex</button>
+        <button class="seg-btn" data-val="Cold Storage">Cold</button>
+      </div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);"><span>Building size</span><span id="sc-sf-val-${side}" style="color:var(--text);font-weight:500;">130,000 SF</span></div>
+      <input type="range" class="slider" id="sc-sf-${side}" min="50000" max="250000" step="5000" value="130000">
+    </div>
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);"><span>Clear height</span><span id="sc-ht-val-${side}" style="color:var(--text);font-weight:500;">${side==='a'?'36':'40'} ft</span></div>
+      <input type="range" class="slider" id="sc-ht-${side}" min="24" max="44" step="1" value="${side==='a'?'36':'40'}">
+    </div>
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);"><span>FAR</span><span id="sc-far-val-${side}" style="color:var(--text);font-weight:500;">0.40</span></div>
+      <input type="range" class="slider" id="sc-far-${side}" min="0.25" max="0.55" step="0.01" value="0.40">
+    </div>
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);"><span>Dock doors</span><span id="sc-doors-val-${side}" style="color:var(--text);font-weight:500;">22</span></div>
+      <input type="range" class="slider" id="sc-doors-${side}" min="4" max="60" step="1" value="22">
+    </div>
+    <div style="margin-bottom:6px;">
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Region</div>
+      <div class="seg-row" id="sc-region-${side}">
+        <button class="seg-btn" data-val="Southwest">SW</button>
+        <button class="seg-btn" data-val="South Central">SC</button>
+        <button class="seg-btn" data-val="Southeast">SE</button>
+        <button class="seg-btn active" data-val="Midwest">Midwest</button>
+      </div>
+    </div>
+    <div class="toggle-row" style="margin-top:8px;">
+      <div class="toggle" id="sc-firetank-${side}"></div>
+      <span style="font-size:12px;color:var(--text);">Fire tank</span>
+    </div>
+  `;
+}
+
+function scInitInputs() {
+  document.getElementById('sc-inputs-a').innerHTML = scInputsHtml('a');
+  document.getElementById('sc-inputs-b').innerHTML = scInputsHtml('b');
+  ['a', 'b'].forEach(side => {
+    const state = side === 'a' ? scStateA : scStateB;
+    ['sf', 'ht', 'far', 'doors'].forEach(k => {
+      const el = document.getElementById(`sc-${k}-${side}`);
+      el.addEventListener('input', () => {
+        const v = +el.value;
+        if (k === 'sf') { state.sf = v; document.getElementById(`sc-sf-val-${side}`).textContent = v.toLocaleString() + ' SF'; }
+        if (k === 'ht') { state.clear_ht = v; document.getElementById(`sc-ht-val-${side}`).textContent = v + ' ft'; }
+        if (k === 'far') { state.far = v; document.getElementById(`sc-far-val-${side}`).textContent = v.toFixed(2); }
+        if (k === 'doors') { state.dock_doors = v; document.getElementById(`sc-doors-val-${side}`).textContent = v; }
+        updateSliderFill(el);
+        scRecompute();
+      });
+      updateSliderFill(el);
+    });
+    document.querySelectorAll(`#sc-type-${side} .seg-btn`).forEach(b => {
+      b.addEventListener('click', () => {
+        state.type = b.dataset.val;
+        document.querySelectorAll(`#sc-type-${side} .seg-btn`).forEach(x => x.classList.toggle('active', x === b));
+        scRecompute();
+      });
+    });
+    document.querySelectorAll(`#sc-region-${side} .seg-btn`).forEach(b => {
+      b.addEventListener('click', () => {
+        state.region = b.dataset.val;
+        state.market = REGION_MARKETS[state.region][0];
+        document.querySelectorAll(`#sc-region-${side} .seg-btn`).forEach(x => x.classList.toggle('active', x === b));
+        scRecompute();
+      });
+    });
+    document.getElementById(`sc-firetank-${side}`).addEventListener('click', () => {
+      state.fire_tank = !state.fire_tank;
+      document.getElementById(`sc-firetank-${side}`).classList.toggle('on', state.fire_tank);
+      scRecompute();
+    });
+    // Initial slider ticks
+    if (side === 'a') {
+      document.querySelector(`#sc-type-${side} .seg-btn[data-val="${state.type}"]`).classList.add('active');
+    }
+  });
+}
+
+let scLastA = null, scLastB = null;
+function scRecompute() {
+  const estA = estimateProject(scStateA);
+  const estB = estimateProject(scStateB);
+  scLastA = estA; scLastB = estB;
+  const totalDelta = estB.total - estA.total;
+  const pct = (totalDelta / estA.total) * 100;
+  const sign = totalDelta >= 0 ? '+' : '−';
+  const color = totalDelta >= 0 ? 'var(--danger)' : 'var(--success)';
+  document.getElementById('sc-total-delta').innerHTML = `<span style="color:${color};">${sign}${fmtM(Math.abs(totalDelta))} (${sign}${Math.abs(pct).toFixed(1)}%)</span>`;
+  // Per-trade table
+  const tbody = document.getElementById('sc-tbody');
+  tbody.innerHTML = estA.byTrade.map((a, i) => {
+    const b = estB.byTrade[i];
+    const d = b.cost - a.cost;
+    const dPct = a.cost > 0 ? (d / a.cost) * 100 : 0;
+    const dColor = Math.abs(d) < 5000 ? 'var(--text-faint)' : (d > 0 ? 'var(--danger)' : 'var(--success)');
+    return `<tr>
+      <td style="font-weight:500;">${a.label}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted);">${fmtM(a.cost)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted);">${fmtM(b.cost)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:${dColor};font-weight:500;">${d >= 0 ? '+' : '−'}${fmtM(Math.abs(d))}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:${dColor};">${dPct >= 0 ? '+' : ''}${dPct.toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+  scUpdateAi();
+}
+
+let scAiTimer = null;
+function scUpdateAi() {
+  if (scAiTimer) clearTimeout(scAiTimer);
+  scAiTimer = setTimeout(scRefreshAi, 400);
+}
+async function scRefreshAi() {
+  if (!scLastA || !scLastB) return;
+  document.getElementById('sc-commentary').textContent = '…analyzing';
+  const r = await ai_scenarioCommentary(scLastA, scLastB);
+  document.getElementById('sc-commentary').textContent = r.text;
+}
+scInitInputs();
+scRecompute();
+
+// ─────────────────────────────────────────────────────
+// V3 — AI QUERY (live, BYOK)
+// ─────────────────────────────────────────────────────
+
+function aiqPrefill(text) {
+  document.getElementById('aiq-input').value = text;
+  document.getElementById('aiq-input').focus();
+}
+async function aiqRun() {
+  const q = document.getElementById('aiq-input').value.trim();
+  if (!q) return;
+  document.getElementById('aiq-result-wrap').style.display = 'block';
+  document.getElementById('aiq-result').textContent = '…thinking';
+  const r = await ai_query(q);
+  document.getElementById('aiq-result').textContent = r.text;
+}
+document.getElementById('aiq-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); aiqRun(); }
+});
+
+// ─────────────────────────────────────────────────────
+// V3 — TRADE LIBRARY PANEL
+// ─────────────────────────────────────────────────────
+
+function tlRender() {
+  const tbody = document.getElementById('tl-tbody');
+  tbody.innerHTML = TRADES.map(t => {
+    const r = TRADE_RATES[t.key];
+    const dotPlot = r.rates.map(rate => {
+      const pos = (rate - r.min) / (r.max - r.min) * 100;
+      return `<span style="position:absolute;left:${pos}%;top:50%;transform:translate(-50%,-50%);width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:0.7;" title="${rate.toFixed(2)}/SF"></span>`;
+    }).join('');
+    return `<tr>
+      <td style="font-weight:500;">${t.label}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text);">$${r.avg.toFixed(2)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted);">$${r.min.toFixed(2)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted);">$${r.max.toFixed(2)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-faint);">±${r.stdDev.toFixed(2)}</td>
+      <td style="padding-left:14px;">
+        <div style="position:relative;height:14px;width:200px;background:linear-gradient(to right, var(--border) 50%, var(--border) 50%);background-size:100% 1px;background-repeat:no-repeat;background-position:center;">
+          ${dotPlot}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+tlRender();
+
+refreshAiStatusBadges();
+
+// ─────────────────────────────────────────────────────
+// AI QUERY (demo responses)
+// ─────────────────────────────────────────────────────
+const AI_RESPONSES = {
+  'Highest $/SF project?': 'Denver Cold Storage leads at <strong>$246.88/SF</strong> — significantly above the portfolio average of $135.40/SF. Cold storage always carries a premium; the high clear height (40 ft) and refrigeration MEP account for most of the gap.',
+  'Avg Midwest vs Southeast cost/SF': 'Midwest average: <strong>$130.13/SF</strong> (2 projects) vs. Southeast average: <strong>$131.55/SF</strong> (3 projects). Surprisingly close at the portfolio level, but Midwest carries higher site costs (+14.7%) offset by lower MEP.',
+  'Which GC came in under budget?': 'Three GCs delivered under budget: <strong>Swinerton</strong> (Austin Flex, -4.4%), <strong>Austin Industries</strong> (Dallas Last Mile, -2.8%), and <strong>Kiewit</strong> (San Antonio Warehouse, -2.3%). All three are Texas-based projects.',
+  'Most expensive site work per acre?': 'Katherines Crossing at <strong>$339K/acre</strong> ($3.8M site cost / 11.2 acres). Chicago prevailing wage and tight urban site likely drivers. Portfolio average is $232K/acre.',
+  'Compare cold storage vs industrial $/SF': 'Cold Storage avg: <strong>$246.88/SF</strong> (1 project). Industrial avg: <strong>$128.40/SF</strong> (5 projects). Premium for cold storage: approximately <strong>+92%</strong>, driven by refrigeration MEP and structural requirements for insulated panels.',
+};
+function runAIQuery() {
+  const input = document.getElementById('ai-query-input').value.trim();
+  if (!input) return;
+  const result = document.getElementById('ai-query-result');
+  const response = AI_RESPONSES[input] || `Based on the 10-project database: the portfolio average all-in cost is <strong>$135.40/SF</strong> across 953K total SF. Midwest projects average $130.13/SF vs. Sun Belt average of $136.47/SF. For detailed analysis on "<em>${input}</em>", connect live data to enable full AI query.`;
+  result.style.display = 'block';
+  result.innerHTML = `
+    <div class="tcard-hdr"><div class="tcard-title">Query Result</div><div class="tcard-sub">${input}</div></div>
+    <div style="padding:16px 20px;font-size:13px;color:#374151;line-height:1.7;">${response}</div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────
+// NEW ESTIMATE (demo output)
+// ─────────────────────────────────────────────────────
+function runEstimate() {
+  const result = document.getElementById('estimate-result');
+  result.innerHTML = `
+    <div class="tcard-hdr"><div class="tcard-title">Cost Estimate — New Project</div><div class="tcard-sub">Based on 4 comparable projects in database</div></div>
+    <div style="padding:16px 20px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+        <div style="background:#f9fafb;border-radius:6px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:4px;">Low Range</div>
+          <div style="font-size:20px;font-weight:700;color:#059669;">$14.8M</div>
+          <div style="font-size:11px;color:#9ca3af;">$123/SF</div>
+        </div>
+        <div style="background:#eff6ff;border-radius:6px;padding:12px;text-align:center;border:1px solid #bfdbfe;">
+          <div style="font-size:10px;font-weight:700;color:#1e40af;text-transform:uppercase;margin-bottom:4px;">Mid Estimate</div>
+          <div style="font-size:20px;font-weight:700;color:#1e40af;">$16.4M</div>
+          <div style="font-size:11px;color:#9ca3af;">$137/SF</div>
+        </div>
+        <div style="background:#f9fafb;border-radius:6px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:4px;">High Range</div>
+          <div style="font-size:20px;font-weight:700;color:#d97706;">$18.0M</div>
+          <div style="font-size:11px;color:#9ca3af;">$150/SF</div>
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr>
+          <th style="text-align:left;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;padding:6px 0;border-bottom:1px solid #e5e7eb;">Category</th>
+          <th style="text-align:right;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;padding:6px 0;border-bottom:1px solid #e5e7eb;">Est. Cost</th>
+          <th style="text-align:right;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;padding:6px 0;border-bottom:1px solid #e5e7eb;">$/SF</th>
+        </tr></thead>
+        <tbody>
+          ${[['Structural / Concrete','$4.1M','$34'],['Tilt Panel / Skin','$3.4M','$28'],['MEP','$2.7M','$23'],['Site Work','$3.2M','$27'],['GC Fee / GCs','$3.0M','$25']].map(([c,v,s])=>`<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:7px 0;font-size:12px;">${c}</td><td style="text-align:right;font-size:12px;font-weight:600;font-family:monospace;">${v}</td><td style="text-align:right;font-size:11px;color:#9ca3af;font-family:monospace;">${s}</td></tr>`).join('')}
+        </tbody>
+      </table>
+      <div style="margin-top:12px;font-size:11px;color:#9ca3af;">* Mid estimate based on Katherines Crossing, Wolf Rd, Dallas Last Mile, Nashville comps. Connect live bid data for tighter range.</div>
+    </div>
+  `;
+}
+</script>
+</body>
+</html>

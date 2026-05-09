@@ -168,6 +168,87 @@
     }
     .settings-gear:hover { color: var(--text); }
 
+    /* Probability range table cells */
+    .prob-cell {
+      text-align: right; font-variant-numeric: tabular-nums;
+      padding: 6px 9px; white-space: nowrap; font-size: 11.5px;
+      color: var(--text-muted);
+    }
+    .prob-cell.baseline {
+      background: var(--surface-alt); color: var(--text);
+      font-weight: 600;
+    }
+    .prob-cell.likely {
+      background: rgba(163, 45, 45, 0.04);
+    }
+    /* Box the ±10% band with a left/right border */
+    .prob-cell.likely-edge-left { border-left: 2px solid var(--danger); }
+    .prob-cell.likely-edge-right { border-right: 2px solid var(--danger); }
+    .prob-row-total td {
+      border-top: 2px solid var(--border-strong);
+      padding-top: 8px; font-weight: 600; color: var(--text);
+    }
+    #qe-prob-table th {
+      font-size: 10px; padding: 7px 9px;
+      text-align: right; color: var(--text-faint);
+      white-space: nowrap; font-weight: 600;
+    }
+    #qe-prob-table th.likely-edge-left { border-left: 2px solid var(--danger); }
+    #qe-prob-table th.likely-edge-right { border-right: 2px solid var(--danger); }
+    #qe-prob-table th.baseline {
+      background: var(--surface-alt); color: var(--text);
+    }
+
+    /* CSI drill-down */
+    .csi-toggle {
+      display: inline-block; width: 14px; text-align: center;
+      cursor: pointer; user-select: none; color: var(--text-faint);
+      transition: transform 0.12s ease;
+      font-size: 10px; margin-right: 6px;
+    }
+    .csi-toggle.open { transform: rotate(90deg); color: var(--accent); }
+    .csi-subrow td {
+      padding: 6px 14px 6px 36px; background: var(--surface-alt);
+      font-size: 12px; color: var(--text-muted); border-bottom: 1px solid var(--border);
+    }
+    .csi-subrow .csi-div-tag {
+      display: inline-block; font-size: 10px; font-weight: 700;
+      padding: 1px 6px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 3px; margin-right: 8px; color: var(--text-faint);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Deal-mode card */
+    .deal-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px 20px; margin-top: 12px;
+    }
+    .deal-input-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;
+      margin-bottom: 14px;
+    }
+    .deal-input-block label {
+      display: block; font-size: 11px; color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .deal-input-block input {
+      width: 100%; padding: 7px 10px; font-family: inherit; font-size: 13px;
+      border: 1px solid var(--border-strong); border-radius: 6px;
+      background: var(--surface); color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .deal-stack-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 6px 0; font-size: 13px;
+    }
+    .deal-stack-row.total {
+      border-top: 2px solid var(--border-strong);
+      margin-top: 6px; padding-top: 10px;
+      font-size: 16px; font-weight: 600; color: var(--text);
+    }
+    .deal-stack-row .lbl { color: var(--text-muted); }
+    .deal-stack-row .val { font-variant-numeric: tabular-nums; }
+
     .app { display: block; }
 
     /* ─── SIDEBAR ─────────────────────────────────────── */
@@ -1464,6 +1545,10 @@
           <div class="dash-sub">10 historical Stoten projects scored on 8 cost-driving factors. Adjust the inputs — the estimate re-computes live.</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
+          <div class="toggle-row" style="cursor:pointer;" id="qe-deal-mode-toggle-wrap" title="Toggle Deal Mode: adds soft costs, contingency, developer fee, land for an all-in deal estimate">
+            <div class="toggle" id="qe-deal-mode-toggle"></div>
+            <span style="font-size:13px;color:var(--text);">Deal Mode</span>
+          </div>
           <button class="settings-gear" onclick="openSettings()" title="AI settings">⚙</button>
           <div class="demo-badge">Demo · Sample Data</div>
         </div>
@@ -1581,6 +1666,56 @@
                 </thead>
                 <tbody id="qe-breakdown-tbody"></tbody>
               </table>
+            </div>
+
+            <!-- Deal Mode card (hidden when deal_mode is off) -->
+            <div class="deal-card" id="qe-deal-card" style="display:none;">
+              <div style="font-size:11px;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">All-in deal totals</div>
+
+              <div class="deal-input-grid">
+                <div class="deal-input-block">
+                  <label>Land purchase ($)</label>
+                  <input type="number" id="qe-land" min="0" step="100000" value="0" placeholder="e.g. 5000000">
+                </div>
+                <div class="deal-input-block">
+                  <label>Brokerage / closing ($)</label>
+                  <input type="number" id="qe-brokerage" min="0" step="50000" value="0" placeholder="e.g. 250000">
+                </div>
+                <div class="deal-input-block">
+                  <label>Soft costs (% of hard) <span class="help-target" title="Design fees, advisory, legal, surveying. Industry default 6%; tune to Stoten's actuals." style="font-size:10px;color:var(--text-faint);">ⓘ</span></label>
+                  <input type="number" id="qe-soft" min="0" max="20" step="0.5" value="6.0">
+                </div>
+                <div class="deal-input-block">
+                  <label>Owner contingency (%) <span class="help-target" title="Reserve for unforeseen costs and scope changes. Industry default 8% on hard+soft; some lenders require 5–10%." style="font-size:10px;color:var(--text-faint);">ⓘ</span></label>
+                  <input type="number" id="qe-contingency" min="0" max="20" step="0.5" value="8.0">
+                </div>
+                <div class="deal-input-block">
+                  <label>Developer fee (%) <span class="help-target" title="Owner's developer margin. Industry default 3%; tune to Stoten's actuals." style="font-size:10px;color:var(--text-faint);">ⓘ</span></label>
+                  <input type="number" id="qe-developer" min="0" max="10" step="0.25" value="3.0">
+                </div>
+              </div>
+
+              <div id="qe-deal-stack"></div>
+            </div>
+
+            <!-- Probability range table (JLL-style) -->
+            <div class="tcard" style="margin-top:12px;">
+              <div class="tcard-hdr">
+                <div class="tcard-title">Probability range — if real costs land off baseline</div>
+                <div class="tcard-sub">Baseline column (gray) is the mid estimate. The ±10% band (boxed) is the most-likely real-cost range. Outside ±10% gets progressively less probable. Useful for underwriting cushion conversations.</div>
+              </div>
+              <div style="overflow-x:auto;">
+                <table id="qe-prob-table" style="width:100%;font-size:12px;">
+                  <thead>
+                    <tr>
+                      <th style="text-align:left;position:sticky;left:0;background:var(--surface);z-index:1;">Trade</th>
+                      <!-- Bands populated by JS -->
+                    </tr>
+                  </thead>
+                  <tbody id="qe-prob-tbody"></tbody>
+                  <tfoot id="qe-prob-tfoot"></tfoot>
+                </table>
+              </div>
             </div>
 
             <!-- AI commentary -->
@@ -1811,6 +1946,47 @@ function tradeUnitRate(tradeKey) {
 // Cache per-trade rates
 const TRADE_RATES = {};
 TRADES.forEach(t => { TRADE_RATES[t.key] = tradeUnitRate(t.key); });
+
+// Probability bands for the JLL-style sweep table
+const PROB_BANDS = [-0.25, -0.20, -0.15, -0.10, -0.05, 0, 0.05, 0.10, 0.15, 0.20, 0.25];
+
+// CSI MasterFormat division mapping for drill-down view.
+// Each of the 10 trades splits into 1-3 CSI divisions. Shares are
+// educated guesses for v0.2 — they'll be calibrated to actual Stoten
+// closeouts once those are in the database.
+const CSI_BREAKDOWN = {
+  foundations: [
+    { div: '03', label: 'Concrete',                       share: 0.70 },
+    { div: '31', label: 'Earthwork (foundations portion)',share: 0.30 },
+  ],
+  steel:       [{ div: '05', label: 'Metals',             share: 1.00 }],
+  panels:      [{ div: '07', label: 'Thermal & Moisture (Tilt-up)', share: 1.00 }],
+  roofing:     [{ div: '07', label: 'Thermal & Moisture (Roof)',    share: 1.00 }],
+  mechanical: [
+    { div: '23', label: 'HVAC',                           share: 0.85 },
+    { div: '25', label: 'Building Automation',            share: 0.15 },
+  ],
+  electrical: [
+    { div: '26', label: 'Electrical',                     share: 0.80 },
+    { div: '27', label: 'Communications',                 share: 0.10 },
+    { div: '28', label: 'Electronic Safety / Security',   share: 0.10 },
+  ],
+  plumbing_fp: [
+    { div: '21', label: 'Fire Suppression',               share: 0.55 },
+    { div: '22', label: 'Plumbing',                       share: 0.45 },
+  ],
+  dock_equip:  [{ div: '11', label: 'Equipment (Doors / Levelers)', share: 1.00 }],
+  site_civil: [
+    { div: '31', label: 'Earthwork',                      share: 0.40 },
+    { div: '32', label: 'Exterior Improvements',          share: 0.40 },
+    { div: '33', label: 'Utilities',                      share: 0.20 },
+  ],
+  gc_fee: [
+    { div: '01',  label: 'General Requirements',          share: 0.50 },
+    { div: 'INS', label: 'Insurance',                     share: 0.20 },
+    { div: 'OH',  label: 'GC Fee + Overhead',             share: 0.30 },
+  ],
+};
 
 // Find comparable projects given inputs
 function findComps(inputs) {
@@ -2051,7 +2227,19 @@ function tmpl_aiQuery(question) {
 
 function tmpl_underwritingNarrative(est) {
   const i = est.inputs;
-  return `Estimated all-in construction cost: ${fmtM(est.total)} (${fmt$(est.cost_per_sf, 0)}/SF), based on ${est.comps.length} comparable Stoten projects. Building specs: ${i.sf.toLocaleString()} SF ${i.type.toLowerCase()} with ${i.clear_ht}' clear height, ${i.dock_doors} dock doors, FAR of ${i.far.toFixed(2)} in the ${i.market} market. Primary cost drivers are ${est.byTrade.sort((a,b) => b.cost - a.cost).slice(0,3).map(t => t.label.split(' /')[0]).join(', ')}, accounting for ~${est.byTrade.sort((a,b) => b.cost - a.cost).slice(0,3).reduce((s, t) => s + t.pct, 0).toFixed(0)}% of total cost. Estimate range is ${fmtM(est.range_low)} – ${fmtM(est.range_high)} (±${(((est.range_high - est.total) / est.total) * 100).toFixed(0)}% confidence band based on ${est.confidence.level.toLowerCase()} comp coverage).`;
+  const top3 = est.byTrade.sort((a,b) => b.cost - a.cost).slice(0,3);
+  const drivers = top3.map(t => t.label.split(' /')[0]).join(', ');
+  const driverPct = top3.reduce((s, t) => s + t.pct, 0).toFixed(0);
+  // Construction-only narrative
+  if (!qeState.deal_mode) {
+    return `Estimated all-in construction cost: ${fmtM(est.total)} (${fmt$(est.cost_per_sf, 0)}/SF), based on ${est.comps.length} comparable Stoten projects. Building specs: ${i.sf.toLocaleString()} SF ${i.type.toLowerCase()} with ${i.clear_ht}' clear height, ${i.dock_doors} dock doors, FAR of ${i.far.toFixed(2)} in the ${i.market} market. Primary cost drivers are ${drivers}, accounting for ~${driverPct}% of total cost. Estimate range is ${fmtM(est.range_low)} – ${fmtM(est.range_high)} (±${(((est.range_high - est.total) / est.total) * 100).toFixed(0)}% confidence band based on ${est.confidence.level.toLowerCase()} comp coverage).`;
+  }
+  // Deal-mode narrative (all-in)
+  const d = computeDealTotals(est.total);
+  const landNote = d.land > 0 || d.brokerage > 0
+    ? ` Land + closing of ${fmtM(d.land + d.brokerage)} brings total deal cost to ${fmtM(d.all_in_deal)}.`
+    : '';
+  return `Estimated all-in deal cost: ${fmtM(d.all_in_deal)} for a ${i.sf.toLocaleString()} SF ${i.type.toLowerCase()} build in the ${i.market} market (${i.clear_ht}' clear, ${i.dock_doors} dock doors, FAR ${i.far.toFixed(2)}). Hard construction cost is ${fmtM(d.hardCost)} (${fmt$(est.cost_per_sf, 0)}/SF), with primary drivers ${drivers} (~${driverPct}% of hard). Layered costs: soft costs at ${qeState.soft_pct.toFixed(1)}% (${fmtM(d.soft)}), owner contingency at ${qeState.contingency_pct.toFixed(1)}% (${fmtM(d.contingency)}), developer fee at ${qeState.developer_pct.toFixed(2)}% (${fmtM(d.developer)}).${landNote} Estimate is based on ${est.comps.length} comparable Stoten projects with ${est.confidence.level.toLowerCase()} comp coverage.`;
 }
 
 function tmpl_dataFlags() {
@@ -2091,8 +2279,30 @@ async function ai_scenarioCommentary(estA, estB) {
 }
 
 async function ai_underwritingNarrative(est) {
-  const sys = `Write a single-paragraph drop-in for a deal underwriting memo. Lead with the estimated all-in construction cost, name the top cost drivers, mention the comp basis and confidence level. Professional tone, ~80-120 words. No bullet points.`;
-  const userMsg = `Estimate: ${JSON.stringify({ inputs: est.inputs, total: Math.round(est.total), range_low: Math.round(est.range_low), range_high: Math.round(est.range_high), cost_per_sf: est.cost_per_sf.toFixed(2), top_trades: est.byTrade.sort((a,b)=>b.cost-a.cost).slice(0,4).map(t => ({label: t.label, pct: t.pct.toFixed(1)})), comp_count: est.comps.length, confidence: est.confidence.level }, null, 2)}\n\nWrite the paragraph.`;
+  const dealCtx = qeState.deal_mode ? computeDealTotals(est.total) : null;
+  const sys = qeState.deal_mode
+    ? `Write a single-paragraph drop-in for a deal underwriting memo. Lead with the all-in DEAL cost (not just construction), name the top hard-cost drivers, walk briefly through the soft cost / contingency / developer fee / land stack, and end with the comp basis and confidence level. Professional tone, ~100-140 words. No bullet points. The numbers provided are deterministic — do not recompute them.`
+    : `Write a single-paragraph drop-in for a deal underwriting memo. Lead with the estimated all-in construction cost, name the top cost drivers, mention the comp basis and confidence level. Professional tone, ~80-120 words. No bullet points.`;
+  const dealPayload = dealCtx ? {
+    all_in_deal_cost: Math.round(dealCtx.all_in_deal),
+    hard_cost: Math.round(dealCtx.hardCost),
+    soft_cost: Math.round(dealCtx.soft), soft_pct: qeState.soft_pct,
+    owner_contingency: Math.round(dealCtx.contingency), contingency_pct: qeState.contingency_pct,
+    developer_fee: Math.round(dealCtx.developer), developer_pct: qeState.developer_pct,
+    land: Math.round(dealCtx.land), brokerage: Math.round(dealCtx.brokerage),
+  } : null;
+  const userMsg = `Estimate: ${JSON.stringify({
+    inputs: est.inputs,
+    total: Math.round(est.total),
+    range_low: Math.round(est.range_low),
+    range_high: Math.round(est.range_high),
+    cost_per_sf: est.cost_per_sf.toFixed(2),
+    top_trades: est.byTrade.sort((a,b)=>b.cost-a.cost).slice(0,4).map(t => ({label: t.label, pct: t.pct.toFixed(1)})),
+    comp_count: est.comps.length,
+    confidence: est.confidence.level,
+    deal_mode: qeState.deal_mode,
+    deal_totals: dealPayload,
+  }, null, 2)}\n\nWrite the paragraph.`;
   return aiCall(sys, userMsg, () => tmpl_underwritingNarrative(est));
 }
 
@@ -2968,9 +3178,127 @@ const QE_PRESETS = {
   'flex':         { type: 'Flex',         sf: 75000,  clear_ht: 26, far: 0.42, dock_doors: 10, region: 'Southeast',     fire_tank: false },
 };
 
-let qeState = { ...QE_PRESETS['rear-load'], market: 'Chicago, IL' };
+let qeState = {
+  ...QE_PRESETS['rear-load'], market: 'Chicago, IL',
+  // Deal Mode (v0.2)
+  deal_mode: false,
+  land_cost: 0,
+  brokerage: 0,
+  soft_pct: 6.0,
+  contingency_pct: 8.0,
+  developer_pct: 3.0,
+};
 let qeCurrentEstimate = null;
 let qeDebounceTimer = null;
+let qeOpenCsiTrades = new Set();  // tracks which trade rows have CSI drill-down expanded
+
+// JLL-style probability range table
+function renderProbTable(est) {
+  const table = document.getElementById('qe-prob-table');
+  if (!table) return;
+  // Build header row: Trade | -25% | -20% | ... | BASELINE | ... | +25%
+  const headRow = table.querySelector('thead tr');
+  // Wipe everything after the first <th> (the "Trade" header)
+  while (headRow.children.length > 1) headRow.removeChild(headRow.lastChild);
+  PROB_BANDS.forEach((b, i) => {
+    const th = document.createElement('th');
+    if (b === 0) {
+      th.textContent = 'BASELINE';
+      th.classList.add('baseline');
+    } else {
+      th.textContent = (b > 0 ? '+' : '') + (b * 100).toFixed(0) + '%';
+    }
+    if (b === -0.10) th.classList.add('likely-edge-left');
+    if (b === 0.10) th.classList.add('likely-edge-right');
+    headRow.appendChild(th);
+  });
+
+  // Body rows: one per trade
+  const tbody = document.getElementById('qe-prob-tbody');
+  tbody.innerHTML = est.byTrade.map(t => {
+    const cells = PROB_BANDS.map(b => {
+      const cost = t.cost * (1 + b);
+      const classes = ['prob-cell'];
+      if (b === 0) classes.push('baseline');
+      if (b >= -0.10 && b <= 0.10) classes.push('likely');
+      if (b === -0.10) classes.push('likely-edge-left');
+      if (b === 0.10) classes.push('likely-edge-right');
+      return `<td class="${classes.join(' ')}">${fmtM(cost)}</td>`;
+    }).join('');
+    return `<tr><td style="font-weight:500;font-size:12px;position:sticky;left:0;background:var(--surface);">${t.label}</td>${cells}</tr>`;
+  }).join('');
+
+  // Footer (TOTAL row)
+  const tfoot = document.getElementById('qe-prob-tfoot');
+  tfoot.innerHTML = `<tr class="prob-row-total">
+    <td style="font-weight:600;font-size:12px;position:sticky;left:0;background:var(--surface);">TOTAL</td>
+    ${PROB_BANDS.map(b => {
+      const cost = est.total * (1 + b);
+      const classes = ['prob-cell'];
+      if (b === 0) classes.push('baseline');
+      if (b >= -0.10 && b <= 0.10) classes.push('likely');
+      if (b === -0.10) classes.push('likely-edge-left');
+      if (b === 0.10) classes.push('likely-edge-right');
+      return `<td class="${classes.join(' ')}">${fmtM(cost)}</td>`;
+    }).join('')}
+  </tr>`;
+}
+
+// Compute deal-mode totals from deterministic hard cost
+function computeDealTotals(hardCost) {
+  const soft = hardCost * (qeState.soft_pct / 100);
+  const subtotal_pre_contingency = hardCost + soft;
+  const contingency = subtotal_pre_contingency * (qeState.contingency_pct / 100);
+  const subtotal = subtotal_pre_contingency + contingency;
+  const developer = subtotal * (qeState.developer_pct / 100);
+  const all_in_dev = subtotal + developer;
+  const land = +(qeState.land_cost || 0);
+  const brokerage = +(qeState.brokerage || 0);
+  const all_in_deal = all_in_dev + land + brokerage;
+  return { hardCost, soft, contingency, subtotal, developer, all_in_dev, land, brokerage, all_in_deal };
+}
+
+// Render the deal-mode stack (only visible when deal_mode is on)
+function renderDealStack(est) {
+  const card = document.getElementById('qe-deal-card');
+  if (!card) return;
+  if (!qeState.deal_mode) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+  const d = computeDealTotals(est.total);
+  const stackHtml = `
+    <div class="deal-stack-row">
+      <span class="lbl">Hard cost (construction)</span>
+      <span class="val">${fmtM(d.hardCost)}</span>
+    </div>
+    <div class="deal-stack-row">
+      <span class="lbl">+ Soft costs (${qeState.soft_pct.toFixed(1)}%)</span>
+      <span class="val">${fmtM(d.soft)}</span>
+    </div>
+    <div class="deal-stack-row">
+      <span class="lbl">+ Owner contingency (${qeState.contingency_pct.toFixed(1)}% of hard + soft)</span>
+      <span class="val">${fmtM(d.contingency)}</span>
+    </div>
+    <div class="deal-stack-row" style="border-top:1px solid var(--border);margin-top:6px;padding-top:8px;">
+      <span class="lbl" style="color:var(--text);font-weight:500;">Subtotal (hard + soft + contingency)</span>
+      <span class="val" style="font-weight:500;">${fmtM(d.subtotal)}</span>
+    </div>
+    <div class="deal-stack-row">
+      <span class="lbl">+ Developer fee (${qeState.developer_pct.toFixed(2)}% of subtotal)</span>
+      <span class="val">${fmtM(d.developer)}</span>
+    </div>
+    ${d.land > 0 ? `<div class="deal-stack-row"><span class="lbl">+ Land purchase</span><span class="val">${fmtM(d.land)}</span></div>` : ''}
+    ${d.brokerage > 0 ? `<div class="deal-stack-row"><span class="lbl">+ Brokerage / closing</span><span class="val">${fmtM(d.brokerage)}</span></div>` : ''}
+    <div class="deal-stack-row total">
+      <span class="lbl" style="color:var(--text);">All-in deal cost</span>
+      <span class="val">${fmtM(d.all_in_deal)}</span>
+    </div>
+    ${d.land > 0 || d.brokerage > 0 ? `<div style="font-size:11px;color:var(--text-faint);text-align:right;margin-top:4px;">All-in development cost (no land/closing): ${fmtM(d.all_in_dev)}</div>` : ''}
+  `;
+  document.getElementById('qe-deal-stack').innerHTML = stackHtml;
+}
 
 function updateSliderFill(el) {
   const min = +el.min, max = +el.max, val = +el.value;
@@ -3017,16 +3345,47 @@ function recomputeEstimate() {
   const confColors = { success: ['var(--success-bg)', 'var(--success)'], accent: ['var(--accent-bg)', 'var(--accent)'], warn: ['var(--warn-bg)', 'var(--warn)'], danger: ['var(--danger-bg)', 'var(--danger)'] };
   const [bg, fg] = confColors[est.confidence.cls] || confColors.accent;
   confEl.style.background = bg; confEl.style.color = fg;
-  // Trade breakdown
+  // Trade breakdown (with CSI drill-down toggles)
   const tbody = document.getElementById('qe-breakdown-tbody');
-  tbody.innerHTML = est.byTrade.map(t => `
-    <tr>
-      <td style="font-weight:500;">${t.label}</td>
+  tbody.innerHTML = est.byTrade.map(t => {
+    const csi = CSI_BREAKDOWN[t.key] || [];
+    const hasDrilldown = csi.length > 1;
+    const wasOpen = qeOpenCsiTrades.has(t.key);
+    const toggleHtml = hasDrilldown
+      ? `<span class="csi-toggle ${wasOpen ? 'open' : ''}" data-trade="${t.key}" title="Show CSI division split">▶</span>`
+      : `<span style="display:inline-block;width:14px;margin-right:6px;"></span>`;
+    let html = `<tr data-trade-row="${t.key}">
+      <td style="font-weight:500;">${toggleHtml}${t.label}</td>
       <td style="text-align:right;font-variant-numeric:tabular-nums;">$${t.adjustedRate.toFixed(2)}</td>
       <td style="text-align:right;font-variant-numeric:tabular-nums;">${fmtM(t.cost)}</td>
       <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted);">${t.pct.toFixed(1)}%</td>
-    </tr>
-  `).join('');
+    </tr>`;
+    if (wasOpen && hasDrilldown) {
+      html += csi.map(c => `<tr class="csi-subrow">
+        <td colspan="4">
+          <span class="csi-div-tag">Div ${c.div}</span>${c.label}
+          <span style="float:right;color:var(--text-muted);font-variant-numeric:tabular-nums;">
+            $${(t.adjustedRate * c.share).toFixed(2)}/SF · ${fmtM(t.cost * c.share)} · ${(c.share * 100).toFixed(0)}% of trade
+          </span>
+        </td>
+      </tr>`).join('');
+    }
+    return html;
+  }).join('');
+  // Wire toggle clicks (re-attached on every render)
+  tbody.querySelectorAll('.csi-toggle').forEach(tog => {
+    tog.addEventListener('click', () => {
+      const trade = tog.dataset.trade;
+      if (qeOpenCsiTrades.has(trade)) qeOpenCsiTrades.delete(trade);
+      else qeOpenCsiTrades.add(trade);
+      recomputeEstimate();
+    });
+  });
+
+  // Probability range table
+  renderProbTable(est);
+  // Deal Mode card (only renders if deal_mode is on)
+  renderDealStack(est);
   // Comps list
   const compsList = document.getElementById('qe-comps-list');
   if (est.comps.length === 0) {
@@ -3114,6 +3473,28 @@ function initQuickEstimate() {
     qeState.fire_tank = !qeState.fire_tank;
     document.getElementById('qe-firetank-toggle').classList.toggle('on', qeState.fire_tank);
     recomputeEstimate();
+  });
+  // Deal Mode toggle
+  document.getElementById('qe-deal-mode-toggle-wrap').addEventListener('click', () => {
+    qeState.deal_mode = !qeState.deal_mode;
+    document.getElementById('qe-deal-mode-toggle').classList.toggle('on', qeState.deal_mode);
+    recomputeEstimate();
+  });
+  // Deal Mode inputs (live-bind on change)
+  const dealInputs = [
+    ['qe-land', 'land_cost'],
+    ['qe-brokerage', 'brokerage'],
+    ['qe-soft', 'soft_pct'],
+    ['qe-contingency', 'contingency_pct'],
+    ['qe-developer', 'developer_pct'],
+  ];
+  dealInputs.forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', () => {
+      const v = parseFloat(el.value);
+      qeState[key] = isNaN(v) ? 0 : v;
+      recomputeEstimate();
+    });
   });
   // Presets
   document.querySelectorAll('#qe-presets .preset-chip').forEach(b => {
